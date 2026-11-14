@@ -1,17 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 import { MissionWorkspace } from "@/components/workspace/mission-workspace";
 import { LunarMapPanel } from "@/components/workspace/lunar-map-panel";
 import { MissionAnalysisPanel } from "@/components/workspace/mission-analysis-panel";
 
-describe("Phase 5 Mission Workspace Tests", () => {
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  redirect: vi.fn(),
+}));
+
+describe("Phase 6 Integrated Mission Workspace Tests", () => {
   it("renders all three workspace panels and top navigation", () => {
     render(<MissionWorkspace />);
 
     // Top navigation
     expect(screen.getByText("Lunar Mission Planner")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Mission Planner" })).toBeDefined();
+    expect(screen.getByText("Mission Planner")).toBeDefined();
+    expect(screen.getByText("Back to Input")).toBeDefined();
 
     // Left Panel: Mission Input
     expect(screen.getByText("Mission Input")).toBeDefined();

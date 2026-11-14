@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { Orbit } from "lucide-react";
+import { Orbit, ArrowLeft } from "lucide-react";
 
 export function WorkspaceNavigation() {
   return (
@@ -20,37 +20,35 @@ export function WorkspaceNavigation() {
         </Link>
 
         {/* Navigation Items */}
-        <div className="flex items-center gap-2 sm:gap-5">
-          <button
-            type="button"
-            className="rounded-full bg-sky-500/20 px-3.5 py-1.5 text-xs font-medium text-sky-200 ring-1 ring-sky-400/40 shadow-sm"
+        <div className="flex items-center gap-2 sm:gap-4">
+          <span
+            className="rounded-full bg-sky-500/20 px-3.5 py-1.5 text-xs font-semibold text-sky-200 ring-1 ring-sky-400/40 shadow-sm"
             aria-current="page"
           >
             Mission Planner
-          </button>
-          <Link
-            href="/analysis"
+          </span>
+          <a
+            href="#mission-analysis-heading"
             className="rounded-full px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors"
           >
             Analysis
-          </Link>
+          </a>
           <a
             href="#compare"
             onClick={(e) => e.preventDefault()}
-            className="rounded-full px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors"
+            className="rounded-full px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors"
           >
             Compare
           </a>
-          <a
-            href="#about"
-            onClick={(e) => e.preventDefault()}
-            className="rounded-full px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition-colors"
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white ring-1 ring-white/20 hover:bg-white/20 transition-colors"
           >
-            About
-          </a>
+            <ArrowLeft className="h-3 w-3" />
+            <span>Back to Input</span>
+          </Link>
         </div>
       </nav>
     </header>
   );
 }
-

@@ -75,8 +75,8 @@ test.describe("Phase 2 Landing Page E2E Smoke & Visual Flow", () => {
   });
 });
 
-test.describe("Phase 3 Analysis Page Looping MP4 Background", () => {
-  test("renders video element on /analysis with correct attributes and responds with 200", async ({
+test.describe("Phase 6 Integrated Workspace with Looping MP4 Background", () => {
+  test("redirects /analysis to /workspace with video playing behind all 3 panels", async ({
     page,
   }) => {
     let videoStatus = 0;
@@ -86,15 +86,13 @@ test.describe("Phase 3 Analysis Page Looping MP4 Background", () => {
       }
     });
 
+    // Accessing old standalone analysis route redirects to canonical /workspace route
     await page.goto("/analysis");
+    await expect(page).toHaveURL(/\/workspace/);
 
     if (videoStatus > 0) {
       expect(videoStatus).toBeLessThan(400);
     }
-
-    // Verify heading and content exist above background
-    await expect(page.getByText("Mission Analysis Workspace")).toBeVisible();
-    await expect(page.getByText("Telemetry & Surface Status")).toBeVisible();
 
     // Verify video element attributes
     const video = page.locator("video");
@@ -110,13 +108,18 @@ test.describe("Phase 3 Analysis Page Looping MP4 Background", () => {
     // Verify static fallback layer exists
     const fallback = page.locator("div[style*='lunar-mission-background.png']");
     await expect(fallback).toBeAttached();
+
+    // Verify all 3 panels render on the same integrated workspace page
+    await expect(page.getByRole("heading", { name: "Mission Input" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lunar Map" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mission Analysis" })).toBeVisible();
   });
 
   test("respects prefers-reduced-motion by hiding video and displaying static fallback", async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.goto("/analysis");
+    await page.goto("/workspace");
 
     const video = page.locator("video");
     await expect(video).toBeHidden();
@@ -124,17 +127,16 @@ test.describe("Phase 3 Analysis Page Looping MP4 Background", () => {
     const fallback = page.locator("div[style*='lunar-mission-background.png']");
     await expect(fallback).toBeAttached();
   });
-});
 
-test.describe("Phase 4 Full Lunar Mission Workspace", () => {
   test("renders three-panel layout, interactive map, overlay callout, and analysis state", async ({
     page,
   }) => {
-    await page.goto("/workspace");
+    await page.goto("/workspace?lat=-89.50&lon=0.00&date=2028-01-15&time=12:00");
 
     // Navigation check
     await expect(page.getByText("Lunar Mission Planner")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Mission Planner" })).toBeVisible();
+    await expect(page.getByText("Mission Planner", { exact: true })).toBeVisible();
+    await expect(page.getByText("Back to Input")).toBeVisible();
 
     // Three panel headers
     await expect(page.getByRole("heading", { name: "Mission Input" })).toBeVisible();
@@ -151,8 +153,8 @@ test.describe("Phase 4 Full Lunar Mission Workspace", () => {
     await expect(page.locator("text=Lat: -89.50°").first()).toBeVisible();
     await expect(page.locator("text=Lon: 0.00°").first()).toBeVisible();
 
-    // Completed state cards
-    await expect(page.getByText("Analysis Complete")).toBeVisible();
+    // Completed state cards (either live JPL success or graceful upstream warning)
+    await expect(page.getByText(/Analysis Complete|Horizons Ephemeris Warning/)).toBeVisible();
     await expect(page.getByText("Sun Analysis")).toBeVisible();
     await expect(page.getByText("Earth Analysis")).toBeVisible();
     await expect(page.getByText("Communication Visibility")).toBeVisible();
@@ -166,18 +168,18 @@ test.describe("Phase 4 Full Lunar Mission Workspace", () => {
     const analyseBtn = page.getByRole("button", { name: /analyse mission conditions/i });
     await analyseBtn.click();
 
-    // Capture visual reference screenshots across viewports
-    await page.setViewportSize({ width: 1672, height: 941 });
-    await page.screenshot({ path: "test-results/phase-5-workspace-desktop.png" });
+    // Capture visual reference screenshots across viewports for Phase 6
+    await page.setViewportSize({ width: 1912, height: 911 });
+    await page.screenshot({ path: "test-results/phase-6-integrated-workspace-desktop.png" });
 
     await page.setViewportSize({ width: 1024, height: 768 });
-    await page.screenshot({ path: "test-results/phase-5-workspace-tablet.png" });
+    await page.screenshot({ path: "test-results/phase-6-integrated-workspace-tablet.png" });
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: "test-results/phase-5-workspace-mobile.png" });
+    await page.screenshot({ path: "test-results/phase-6-integrated-workspace-mobile.png" });
   });
 
-  test("Phase 5 API health and horizons endpoint verification", async ({ request }) => {
+  test("Phase 6 API health and horizons endpoint verification", async ({ request }) => {
     // 1. App health endpoint
     const healthRes = await request.get("/api/health");
     expect(healthRes.status()).toBe(200);
@@ -202,7 +204,6 @@ test.describe("Phase 4 Full Lunar Mission Workspace", () => {
       },
     });
 
-    // Should return 200 or 502 with structured payload (no uncaught 500 error)
     expect([200, 502]).toContain(horizonsRes.status());
     const horizonsJson = await horizonsRes.json();
     expect(horizonsJson.observerCoordinates).toBeDefined();

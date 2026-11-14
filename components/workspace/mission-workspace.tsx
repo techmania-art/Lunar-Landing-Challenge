@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { WorkspaceNavigation } from "@/components/workspace/workspace-navigation";
 import { MissionInputPanel } from "@/components/workspace/mission-input-panel";
 import { LunarMapPanel } from "@/components/workspace/lunar-map-panel";
 import { MissionAnalysisPanel } from "@/components/workspace/mission-analysis-panel";
+import { AnalysisBackground } from "@/components/analysis/analysis-background";
 import {
   validateMissionForm,
   type RawMissionFormValues,
@@ -17,12 +19,60 @@ export interface MissionWorkspaceProps {
 }
 
 export function MissionWorkspace({ initialValues }: MissionWorkspaceProps) {
-  const [formValues, setFormValues] = useState<RawMissionFormValues>({
-    latitude: initialValues?.latitude || "-89.50",
-    longitude: initialValues?.longitude || "0.00",
-    missionDate: initialValues?.missionDate || "2028-01-15",
-    missionTimeUtc: initialValues?.missionTimeUtc || "12:00",
-    additionalSite: initialValues?.additionalSite || "",
+  const searchParams = useSearchParams();
+
+  const [formValues, setFormValues] = useState<RawMissionFormValues>(() => {
+    if (initialValues?.latitude && initialValues?.longitude) {
+      return {
+        latitude: initialValues.latitude,
+        longitude: initialValues.longitude,
+        missionDate: initialValues.missionDate || "2028-01-15",
+        missionTimeUtc: initialValues.missionTimeUtc || "12:00",
+        additionalSite: initialValues.additionalSite || "",
+      };
+    }
+
+    const urlLat = searchParams?.get("lat");
+    const urlLon = searchParams?.get("lon");
+    if (urlLat && urlLon) {
+      return {
+        latitude: urlLat,
+        longitude: urlLon,
+        missionDate: searchParams?.get("date") || "2028-01-15",
+        missionTimeUtc: searchParams?.get("time") || "12:00",
+        additionalSite: searchParams?.get("compare") || "",
+      };
+    }
+
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      try {
+        const saved = window.sessionStorage.getItem("lunar_mission_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.latitude !== undefined && parsed.longitude !== undefined) {
+            return {
+              latitude: String(parsed.latitude),
+              longitude: String(parsed.longitude),
+              missionDate: parsed.missionDate || "2028-01-15",
+              missionTimeUtc: parsed.missionTimeUtc || "12:00",
+              additionalSite: parsed.additionalSite
+                ? `${parsed.additionalSite.latitude}, ${parsed.additionalSite.longitude}`
+                : "",
+            };
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+    }
+
+    return {
+      latitude: "-89.50",
+      longitude: "0.00",
+      missionDate: "2028-01-15",
+      missionTimeUtc: "12:00",
+      additionalSite: "",
+    };
   });
 
   const [errors, setErrors] = useState<FormValidationErrors>({});
@@ -32,38 +82,13 @@ export function MissionWorkspace({ initialValues }: MissionWorkspaceProps) {
   const [horizonsError, setHorizonsError] = useState<string | null>(null);
 
   // Geographic coordinates passed to the Lunar Map
-  const [mapCoords, setMapCoords] = useState<{ latitude: number; longitude: number }>({
-    latitude: -89.50,
-    longitude: 0.00,
-  });
+  const [mapCoords, setMapCoords] = useState<{ latitude: number; longitude: number }>(() => ({
+    latitude: Number(formValues.latitude) || -89.50,
+    longitude: Number(formValues.longitude) || 0.00,
+  }));
 
-  // Keep map coordinates synchronized with valid numeric inputs
-  const handleFieldChange = (field: keyof RawMissionFormValues, value: string) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-    setIsStale(true);
-
-    if (errors[field]) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    }
-
-    if (field === "latitude" || field === "longitude") {
-      const latVal = field === "latitude" ? Number(value) : Number(formValues.latitude);
-      const lonVal = field === "longitude" ? Number(value) : Number(formValues.longitude);
-      if (Number.isFinite(latVal) && Number.isFinite(lonVal)) {
-        setMapCoords({ latitude: latVal, longitude: lonVal });
-      }
-    }
-  };
-
-  const handleAnalyseSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (isLoading) return;
-
-    const validationResult = validateMissionForm(formValues);
+  const performAnalysis = useCallback(async (values: RawMissionFormValues) => {
+    const validationResult = validateMissionForm(values);
     if (!validationResult.success) {
       setErrors(validationResult.errors);
       return;
@@ -106,32 +131,53 @@ export function MissionWorkspace({ initialValues }: MissionWorkspaceProps) {
       setIsLoading(false);
       setIsStale(false);
     }
+  }, []);
+
+  // Run initial analysis on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void performAnalysis(formValues);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [formValues, performAnalysis]);
+
+  // Keep map coordinates synchronized with valid numeric inputs
+  const handleFieldChange = (field: keyof RawMissionFormValues, value: string) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+    setIsStale(true);
+
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+
+    if (field === "latitude" || field === "longitude") {
+      const latVal = field === "latitude" ? Number(value) : Number(formValues.latitude);
+      const lonVal = field === "longitude" ? Number(value) : Number(formValues.longitude);
+      if (Number.isFinite(latVal) && Number.isFinite(lonVal)) {
+        setMapCoords({ latitude: latVal, longitude: lonVal });
+      }
+    }
+  };
+
+  const handleAnalyseSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isLoading) return;
+    await performAnalysis(formValues);
   };
 
   return (
-    <div className="relative flex min-h-[100svh] w-full flex-col overflow-x-hidden bg-[#071321] text-white font-sans">
-      {/* Background with Lunar Landscape along the bottom */}
-      <div
-        className="fixed inset-0 -z-10 bg-cover bg-no-repeat bg-[center_bottom] pointer-events-none opacity-40 select-none"
-        style={{
-          backgroundImage: `url('/images/lunar-mission-background.png')`,
-        }}
-      />
-      {/* Deep Space Atmosphere Gradient */}
-      <div
-        className="fixed inset-0 -z-10 pointer-events-none"
-        style={{
-          background: `linear-gradient(180deg, 
-            rgba(7, 19, 33, 0.90) 0%, 
-            rgba(7, 19, 33, 0.70) 50%, 
-            rgba(7, 19, 33, 0.85) 100%)`,
-        }}
-      />
+    <div className="relative flex min-h-[100svh] w-full flex-col overflow-x-hidden text-white font-sans">
+      {/* 1. Reusable Looping MP4 Video Background Layer (Phase 3 Component, Unchanged) */}
+      <AnalysisBackground />
 
-      {/* 1. Top Navigation */}
+      {/* 2. Top Navigation */}
       <WorkspaceNavigation />
 
-      {/* 2. Main Three-Panel Workspace */}
+      {/* 3. Main Three-Panel Workspace Foreground */}
       <main className="mx-auto flex w-full max-w-[1700px] flex-1 px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5 items-stretch min-h-[calc(100svh-5rem)]">
           {/* Left Panel: Mission Input (~21% width -> 3 cols) */}

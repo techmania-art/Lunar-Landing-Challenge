@@ -26,12 +26,35 @@ export function MissionConfigurationCard({
   onSubmit,
   isLoading = false,
 }: MissionConfigurationCardProps) {
-  const [formValues, setFormValues] = useState<RawMissionFormValues>({
-    latitude: "",
-    longitude: "",
-    missionDate: "",
-    missionTimeUtc: "12:00",
-    additionalSite: "",
+  // Lazily restore saved mission configuration if returning to input page
+  const [formValues, setFormValues] = useState<RawMissionFormValues>(() => {
+    const defaultValues: RawMissionFormValues = {
+      latitude: "",
+      longitude: "",
+      missionDate: "",
+      missionTimeUtc: "12:00",
+      additionalSite: "",
+    };
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const saved = window.sessionStorage.getItem("lunar_mission_config");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return {
+            latitude: parsed.latitude !== undefined ? String(parsed.latitude) : "",
+            longitude: parsed.longitude !== undefined ? String(parsed.longitude) : "",
+            missionDate: parsed.missionDate ? String(parsed.missionDate) : "",
+            missionTimeUtc: parsed.missionTimeUtc ? String(parsed.missionTimeUtc) : "12:00",
+            additionalSite: parsed.additionalSite
+              ? `${parsed.additionalSite.latitude}, ${parsed.additionalSite.longitude}`
+              : "",
+          };
+        } catch {
+          // ignore parse error
+        }
+      }
+    }
+    return defaultValues;
   });
 
   const [errors, setErrors] = useState<FormValidationErrors>({});
@@ -64,6 +87,12 @@ export function MissionConfigurationCard({
     setIsSubmitting(true);
 
     try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        window.sessionStorage.setItem(
+          "lunar_mission_config",
+          JSON.stringify(validationResult.data)
+        );
+      }
       if (onSubmit) {
         await onSubmit(validationResult.data);
       }
@@ -95,7 +124,17 @@ export function MissionConfigurationCard({
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
-        {/* Field 1: Landing Location */}
+        {/* General Form Error Alert */}
+        {errors.general && (
+          <div
+            role="alert"
+            className="rounded-lg bg-red-50 p-3 text-xs text-red-600 border border-red-200"
+          >
+            {errors.general}
+          </div>
+        )}
+
+        {/* Section 1: Landing Location (Latitude & Longitude) */}
         <div>
           <div className="mb-2 flex items-center gap-2">
             <MapPin className="h-4 w-4 text-sky-600" aria-hidden="true" />
@@ -103,6 +142,7 @@ export function MissionConfigurationCard({
               Landing Location
             </span>
           </div>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label
@@ -115,20 +155,24 @@ export function MissionConfigurationCard({
                 id="latitude"
                 name="latitude"
                 type="text"
+                placeholder="e.g. -89.5"
                 value={formValues.latitude}
                 onChange={(e) => handleChange("latitude", e.target.value)}
-                placeholder="e.g. -89.5"
                 disabled={busy}
                 aria-invalid={!!errors.latitude}
                 aria-describedby={errors.latitude ? "latitude-error" : undefined}
                 className={`w-full rounded-lg border bg-slate-50 px-3.5 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
                   errors.latitude
-                    ? "border-rose-400 focus:ring-rose-400"
+                    ? "border-red-400 focus:border-red-500 focus:ring-red-400/20"
                     : "border-slate-300 focus:border-sky-500 focus:ring-sky-500/20"
                 }`}
               />
               {errors.latitude && (
-                <p id="latitude-error" className="mt-1 text-xs text-rose-600 font-medium">
+                <p
+                  id="latitude-error"
+                  role="alert"
+                  className="mt-1 text-xs text-red-600 font-medium"
+                >
                   {errors.latitude}
                 </p>
               )}
@@ -145,20 +189,24 @@ export function MissionConfigurationCard({
                 id="longitude"
                 name="longitude"
                 type="text"
+                placeholder="e.g. 0.0"
                 value={formValues.longitude}
                 onChange={(e) => handleChange("longitude", e.target.value)}
-                placeholder="e.g. 0.0"
                 disabled={busy}
                 aria-invalid={!!errors.longitude}
                 aria-describedby={errors.longitude ? "longitude-error" : undefined}
                 className={`w-full rounded-lg border bg-slate-50 px-3.5 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
                   errors.longitude
-                    ? "border-rose-400 focus:ring-rose-400"
+                    ? "border-red-400 focus:border-red-500 focus:ring-red-400/20"
                     : "border-slate-300 focus:border-sky-500 focus:ring-sky-500/20"
                 }`}
               />
               {errors.longitude && (
-                <p id="longitude-error" className="mt-1 text-xs text-rose-600 font-medium">
+                <p
+                  id="longitude-error"
+                  role="alert"
+                  className="mt-1 text-xs text-red-600 font-medium"
+                >
                   {errors.longitude}
                 </p>
               )}
@@ -166,9 +214,9 @@ export function MissionConfigurationCard({
           </div>
         </div>
 
-        {/* Field 2: Mission Date */}
+        {/* Section 2: Mission Date */}
         <div>
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <Calendar className="h-4 w-4 text-sky-600" aria-hidden="true" />
             <label
               htmlFor="missionDate"
@@ -177,6 +225,7 @@ export function MissionConfigurationCard({
               Mission Date
             </label>
           </div>
+          <p className="mb-2 text-xs text-slate-500">Target lunar arrival epoch</p>
           <input
             id="missionDate"
             name="missionDate"
@@ -188,20 +237,24 @@ export function MissionConfigurationCard({
             aria-describedby={errors.missionDate ? "date-error" : undefined}
             className={`w-full rounded-lg border bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
               errors.missionDate
-                ? "border-rose-400 focus:ring-rose-400"
+                ? "border-red-400 focus:border-red-500 focus:ring-red-400/20"
                 : "border-slate-300 focus:border-sky-500 focus:ring-sky-500/20"
             }`}
           />
           {errors.missionDate && (
-            <p id="date-error" className="mt-1 text-xs text-rose-600 font-medium">
+            <p
+              id="date-error"
+              role="alert"
+              className="mt-1 text-xs text-red-600 font-medium"
+            >
               {errors.missionDate}
             </p>
           )}
         </div>
 
-        {/* Field 3: Mission Time (UTC) */}
+        {/* Section 3: Mission Time (UTC) */}
         <div>
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <Clock className="h-4 w-4 text-sky-600" aria-hidden="true" />
             <label
               htmlFor="missionTimeUtc"
@@ -221,18 +274,22 @@ export function MissionConfigurationCard({
             aria-describedby={errors.missionTimeUtc ? "time-error" : undefined}
             className={`w-full rounded-lg border bg-slate-50 px-3.5 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
               errors.missionTimeUtc
-                ? "border-rose-400 focus:ring-rose-400"
+                ? "border-red-400 focus:border-red-500 focus:ring-red-400/20"
                 : "border-slate-300 focus:border-sky-500 focus:ring-sky-500/20"
             }`}
           />
           {errors.missionTimeUtc && (
-            <p id="time-error" className="mt-1 text-xs text-rose-600 font-medium">
+            <p
+              id="time-error"
+              role="alert"
+              className="mt-1 text-xs text-red-600 font-medium"
+            >
               {errors.missionTimeUtc}
             </p>
           )}
         </div>
 
-        {/* Field 4: Additional Site (Optional) */}
+        {/* Section 4: Additional Site (Optional) */}
         <div>
           <div className="mb-1 flex items-center gap-2">
             <Layers className="h-4 w-4 text-sky-600" aria-hidden="true" />
@@ -250,38 +307,30 @@ export function MissionConfigurationCard({
             id="additionalSite"
             name="additionalSite"
             type="text"
+            placeholder="e.g. -88.8, 12.4"
             value={formValues.additionalSite}
             onChange={(e) => handleChange("additionalSite", e.target.value)}
-            placeholder="e.g. -88.8, 12.4"
             disabled={busy}
             aria-invalid={!!errors.additionalSite}
-            aria-describedby={
-              errors.additionalSite ? "additional-site-error" : undefined
-            }
+            aria-describedby={errors.additionalSite ? "additional-error" : undefined}
             className={`w-full rounded-lg border bg-slate-50 px-3.5 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
               errors.additionalSite
-                ? "border-rose-400 focus:ring-rose-400"
+                ? "border-red-400 focus:border-red-500 focus:ring-red-400/20"
                 : "border-slate-300 focus:border-sky-500 focus:ring-sky-500/20"
             }`}
           />
           {errors.additionalSite && (
             <p
-              id="additional-site-error"
-              className="mt-1 text-xs text-rose-600 font-medium"
+              id="additional-error"
+              role="alert"
+              className="mt-1 text-xs text-red-600 font-medium"
             >
               {errors.additionalSite}
             </p>
           )}
         </div>
 
-        {/* General Form Error if any */}
-        {errors.general && (
-          <p className="text-xs text-rose-600 font-medium bg-rose-50 p-2.5 rounded-lg border border-rose-200">
-            {errors.general}
-          </p>
-        )}
-
-        {/* Submit Button */}
+        {/* Primary CTA Button */}
         <button
           type="submit"
           disabled={busy}
@@ -289,11 +338,11 @@ export function MissionConfigurationCard({
         >
           <Play className="h-4 w-4 fill-white text-white" aria-hidden="true" />
           <span>
-            {busy ? "Validating Mission..." : "Analyse Mission Conditions"}
+            {busy ? "Validating & Analysing..." : "Analyse Mission Conditions"}
           </span>
         </button>
 
-        {/* Validated payload confirmation (phase 2 & 3 feedback) */}
+        {/* Validated payload confirmation */}
         {submittedData && (
           <div
             role="status"
@@ -308,7 +357,7 @@ export function MissionConfigurationCard({
               </span>
             </div>
             <a
-              href="/workspace"
+              href={`/workspace?lat=${encodeURIComponent(submittedData.latitude)}&lon=${encodeURIComponent(submittedData.longitude)}&date=${encodeURIComponent(submittedData.missionDate)}&time=${encodeURIComponent(submittedData.missionTimeUtc)}${submittedData.additionalSite ? `&compare=${encodeURIComponent(`${submittedData.additionalSite.latitude},${submittedData.additionalSite.longitude}`)}` : ""}`}
               className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors w-fit"
             >
               <span>Open Mission Workspace</span>
@@ -320,4 +369,3 @@ export function MissionConfigurationCard({
     </div>
   );
 }
-

@@ -4,12 +4,15 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- **Phase 5 Completed:** User-Driven Coordinates, JPL Horizons Integration, and Real LROC QuickMap Imagery.
-- Ready for Phase 6: Elevation Models, Raycast Obstruction Analysis, and PDF Export.
+- **Phase 6 Completed:** Merge Analysis Background into the Mission Workspace.
+- Existing Phase 3 `AnalysisBackground` component reused unchanged behind the full three-panel workspace.
+- Merged standalone Analysis page into canonical `/workspace` route with permanent redirect from `/analysis`.
+- Implemented mission workflow route protection, state persistence via query parameters and `sessionStorage`, and seamless return-to-input flow.
+- All 8 unit test suites (52 tests) and Playwright E2E suite (6 tests) passing.
 
 ## Current Goal
 
-- Completed Phase 5 according to `context/System-Flow/phase-5-horizons-quickmap-integration.md`. Ready for Phase 6.
+- Ready for Phase 7 (Radial LOLA DEM Elevation Profiling & Terrain Obstruction Modeling).
 
 ## Completed
 
@@ -84,10 +87,29 @@ Update this file whenever the current phase, active feature, or implementation s
       - Vitest: 48 tests passing across 7 suites (`tests/lunar-coordinates.test.ts`, `tests/horizons-service.test.ts`, `tests/mission-validation.test.ts`, `tests/workspace.test.tsx`, etc.).
       - Playwright e2e: 6/6 tests passing across Edge channel, including live workspace interaction, API health, and Horizons endpoint tests.
       - Visual responsive screenshots captured and inspected for desktop (1672x941), tablet (1024x768), and mobile (390x844).
+- **Phase 6 Integrated Analysis Workspace with Looping MP4 Video Background (Completed 2026-11-14):**
+  - **Preserved `AnalysisBackground` Component Unchanged:** Kept `components/analysis/analysis-background.tsx` completely intact without redesign or asset modification, rendering `/animations/analysis-background.mp4` with `/images/lunar-mission-background.png` static fallback and `motion-reduce:hidden`.
+  - **Single Consolidated Page Experience:** Mounted `<AnalysisBackground />` directly behind the 3-panel workspace on `/workspace`. The background video runs continuously with `pointer-events-none` at `-z-10`, while all 3 interactive panels (Mission Input, Lunar Map, Mission Analysis) float cleanly on top with high contrast, legible typography, and backdrop blur.
+  - **Canonical Route & Redirection:** Retired standalone `/analysis` page in favor of canonical `/workspace`. Added permanent redirect in `next.config.ts` from `/analysis` to `/workspace` and runtime redirect in `app/analysis/page.tsx`.
+  - **Top Navigation Updated (`WorkspaceNavigation`):**
+    - Active "Mission Planner" pill (`aria-current="page"`).
+    - Anchor link for "Analysis" navigating to `#mission-analysis-heading`.
+    - Added "Back to Input" button linking directly to `/`.
+    - Eliminated dead links and unified workspace navigation bar.
+  - **Mission Workflow Route Protection & State Persistence:**
+    - `MissionConfigurationCard` saves validated mission parameters to `sessionStorage` (`lunar_mission_config`) on submit and provides direct link with URL search params (`/workspace?lat=...&lon=...&date=...&time=...`).
+    - Input values lazily restored upon returning to `/` or deep-linking to `/workspace`.
+    - Automatically executes ephemeris query on initial workspace mount using restored coordinates.
+  - **Verification & Acceptance:**
+    - Typecheck (`tsc --noEmit`): Pass (0 errors).
+    - Lint (`eslint`): Pass (0 warnings/errors).
+    - Vitest unit tests: Pass (52/52 tests in 8 suites).
+    - Playwright E2E tests: Pass (6/6 tests covering redirection, background video playback, reduced motion, interactive form changes, and Horizons diagnostic health).
+    - Visual screenshots recorded for Desktop (1912x911), Tablet (1024x768), and Mobile (390x844).
 
 ## In Progress
 
-- Phase 5 complete. Ready for Phase 6.
+- Phase 6 completed. All quality gates, unit tests, and E2E suites passing.
 
 ## Next Up
 

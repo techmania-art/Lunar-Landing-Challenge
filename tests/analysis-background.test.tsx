@@ -1,11 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import React from "react";
 import { AnalysisBackground } from "@/components/analysis/analysis-background";
 import { LandingPage } from "@/components/landing/landing-page";
-import AnalysisPage from "@/app/analysis/page";
+import { MissionWorkspace } from "@/components/workspace/mission-workspace";
 
-describe("Phase 3 Analysis Background Component & Video Verification", () => {
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  redirect: vi.fn(),
+}));
+
+describe("Phase 6 Analysis Background Integration in Mission Workspace", () => {
   it("renders video element with autoPlay, muted, loop, and playsInline attributes", () => {
     const { container } = render(<AnalysisBackground />);
     const video = container.querySelector("video");
@@ -41,10 +47,11 @@ describe("Phase 3 Analysis Background Component & Video Verification", () => {
     expect(video).toBeNull();
   });
 
-  it("renders the separate Analysis page with AnalysisBackground", () => {
-    const { container, getByText } = render(<AnalysisPage />);
-    expect(getByText("Mission Analysis Workspace")).toBeDefined();
-    expect(container.querySelector("video")).not.toBeNull();
+  it("verifies MissionWorkspace renders AnalysisBackground with looping video behind workspace", () => {
+    const { container } = render(<MissionWorkspace />);
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    expect(video?.hasAttribute("loop")).toBe(true);
+    expect(video?.hasAttribute("autoplay")).toBe(true);
   });
 });
-
