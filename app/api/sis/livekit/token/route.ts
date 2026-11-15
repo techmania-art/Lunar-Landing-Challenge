@@ -21,14 +21,17 @@ type ConnectionDetails = {
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
-const AGENT_NAME = process.env.AGENT_NAME || "lmp-sis-agent";
+const AGENT_NAME =
+  process.env.AGENT_NAME || process.env.SIS_AGENT_NAME || "lmp-sis-agent";
 
 // Dynamic token minting route
 
 export async function POST(req: Request) {
+  // Allow token minting in development, when ALLOW_LOCAL_TEST_TOKEN=true, or by default in demo deployments unless REQUIRE_AUTH=true
   const isAllowed =
     process.env.NODE_ENV === "development" ||
-    process.env.ALLOW_LOCAL_TEST_TOKEN === "true";
+    process.env.ALLOW_LOCAL_TEST_TOKEN === "true" ||
+    process.env.REQUIRE_AUTH !== "true";
 
   if (!isAllowed) {
     return NextResponse.json(
