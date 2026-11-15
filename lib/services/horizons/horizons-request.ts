@@ -1,7 +1,7 @@
 import { toHorizonsSiteCoord } from "@/lib/coordinates/coordinate-transform";
 import type { HorizonsQueryParams } from "./horizons-types";
 
-export const HORIZONS_BASE_URL = "https://ssd-api.jpl.nasa.gov/horizons.api";
+export const HORIZONS_BASE_URL = "https://ssd.jpl.nasa.gov/api/horizons.api";
 
 /**
  * Calculates a stop time 1 minute after the start time in 'YYYY-MM-DD HH:mm' format.

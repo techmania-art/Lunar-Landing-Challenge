@@ -150,3 +150,45 @@ Combines astronomical directions with terrain data to assess local illumination 
 6. Missing data is identified rather than replaced with invented values.
 7. The UI works on desktop, tablet, and mobile.
 8. UI components can be replaced without rewriting the data services or analysis logic.
+
+## Results Page and SIS Assistant — Current Approved Extensions
+
+The existing mission-planning and analysis workflow remains the primary product flow. The Results page presents the current Power Situation and Terrain & Communication Situation. The following additions are approved as isolated extensions.
+
+### Results page background
+- The Results page background image is being replaced with the exact `Horizon.jpg` asset supplied at `C:\Users\hp\OneDrive\Desktop\Lunar Landing\asset\Horizon.jpg`.
+- The image composition includes a star-filled sky, luminous golden celestial arc, clouded horizon, astronaut, reflective foreground, and golden reflection.
+- The image must be stored as a local public asset and rendered without non-uniform distortion.
+- Portrait-to-landscape cropping/containment must be deliberately handled and verified at desktop, tablet, and mobile resolutions.
+- This background replacement does not change the landing-page hero, other backgrounds, result cards, or mission functionality.
+
+### SIS assistant
+A small floating SIS launcher is added to the bottom-right corner of the Mission Operational Results page. Clicking it opens an on-demand conversation panel.
+
+Phase 21 is UI only:
+- Warm off-white/cream chatbot panel.
+- SIS and user messages displayed in distinct left/right bubbles.
+- Welcome/empty state and suggested question chips.
+- Text composer and send control.
+- Microphone and speaker controls shown as non-functional visual placeholders.
+- Open, close, and minimize interactions.
+- Responsive desktop/tablet/mobile behavior.
+
+Phase 21 does not provide live AI answers, RAG retrieval, mission-context injection, voice capture, or LiveKit connectivity.
+
+### Future intelligent assistant capability
+A later, separately scoped integration may provide mission-aware answers by passing current typed Results page context to the existing backend RAG/LLM API. The existing LiveKit voice system may be reused for voice interaction. Text and voice should share mission context, assistant instructions, and conversation history. The assistant must distinguish actual calculated results from retrieved background knowledge and clearly identify missing/stale data.
+
+SIS is a decision-support assistant. It does not autonomously certify a landing site, guarantee radio communications, or replace scientific calculations and human mission authority.
+
+## Latest Active Background Change
+
+The current background replacement requirement is to update the existing webpage background component to use the exact `Horizon.jpg` asset from:
+
+`C:\Users\hp\OneDrive\Desktop\Lunar Landing\asset\Horizon.jpg`
+
+Copy the exact asset into the project's public/static directory and reference it through a browser-safe local path. Render it across `100vw × 100vh` using `background-size: cover`, `background-position: center`, and `background-repeat: no-repeat`. Keep it behind all existing UI. Preserve aspect ratio and document the crop caused by `cover` at different viewport sizes.
+
+Only the background component and necessary asset wiring may change. Existing UI layouts, interactions, foreground animations, mission results, backend, and other components must remain unchanged. No new dependencies or redesign.
+
+This is the latest active instruction and supersedes older `contain`/full-composition-preservation recommendations for the current background replacement.

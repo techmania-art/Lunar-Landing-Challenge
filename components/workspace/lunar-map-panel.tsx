@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import Link from "next/link";
 import {
   Compass,
   Plus,
@@ -10,6 +11,7 @@ import {
   ChevronDown,
   AlertTriangle,
   RotateCcw,
+  Box,
 } from "lucide-react";
 import {
   LROC_LAYERS,
@@ -18,12 +20,16 @@ import {
 } from "@/lib/services/lunar-map/lroc-map-config";
 import { formatCoordinateCallout } from "@/lib/coordinates/coordinate-format";
 import type { LunarCoordinates } from "@/lib/coordinates/lunar-coordinate-types";
+import type { TerrainFeature } from "@/lib/services/terrain/terrain-types";
 
 export interface LunarMapPanelProps {
   latitude: number;
   longitude: number;
   rawLatitude?: string;
   rawLongitude?: string;
+  destLatitude?: number;
+  destLongitude?: number;
+  terrainFeatures?: TerrainFeature[];
 }
 
 export function LunarMapPanel({
@@ -31,6 +37,9 @@ export function LunarMapPanel({
   longitude,
   rawLatitude,
   rawLongitude,
+  destLatitude,
+  destLongitude,
+  terrainFeatures = [],
 }: LunarMapPanelProps) {
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -294,6 +303,94 @@ export function LunarMapPanel({
                 </div>
               </div>
             </div>
+
+            {/* Phase 11: Route Corridor & Hazard Markers Overlay */}
+            {destLatitude !== undefined &&
+              destLongitude !== undefined &&
+              Number.isFinite(destLatitude) &&
+              Number.isFinite(destLongitude) &&
+              (destLatitude !== latitude || destLongitude !== longitude) && (
+                (() => {
+                  const dLat = destLatitude - latitude;
+                  const dLon = destLongitude - longitude;
+                  const destX = Math.max(-140, Math.min(140, dLon * 300));
+                  const destY = Math.max(-140, Math.min(140, -dLat * 300));
+
+                  return (
+                    <div className="absolute inset-0 pointer-events-auto">
+                      {/* Route Line SVG */}
+                      <svg
+                        className="absolute overflow-visible pointer-events-none"
+                        style={{
+                          left: "28px",
+                          top: "28px",
+                          width: "1px",
+                          height: "1px",
+                        }}
+                      >
+                        <line
+                          x1="0"
+                          y1="0"
+                          x2={destX}
+                          y2={destY}
+                          stroke="#38bdf8"
+                          strokeWidth="2.5"
+                          strokeDasharray="5 4"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+
+                      {/* Destination Pin */}
+                      <div
+                        className="absolute flex items-center gap-1.5"
+                        style={{
+                          left: `${28 + destX}px`,
+                          top: `${28 + destY}px`,
+                          transform: "translate(-50%, -50%)",
+                        }}
+                      >
+                        <div className="h-4 w-4 rounded-full border-2 border-sky-400 bg-sky-500/40 shadow-[0_0_10px_#38bdf8] flex items-center justify-center">
+                          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                        </div>
+                        <div className="whitespace-nowrap rounded border border-sky-400/80 bg-[#071321]/90 px-1.5 py-0.5 text-[9px] font-mono text-sky-200 shadow-md">
+                          Dest: {destLatitude.toFixed(2)}°, {destLongitude.toFixed(2)}°
+                        </div>
+                      </div>
+
+                      {/* Corridor Hazard Markers */}
+                      {terrainFeatures
+                        .filter((f) => f.intersectsRouteCorridor)
+                        .slice(0, 3)
+                        .map((feat, idx) => {
+                          const midX = destX * (0.3 + idx * 0.25);
+                          const midY = destY * (0.3 + idx * 0.25);
+
+                          return (
+                            <div
+                              key={feat.id}
+                              className="group absolute"
+                              style={{
+                                left: `${28 + midX}px`,
+                                top: `${28 + midY}px`,
+                                transform: "translate(-50%, -50%)",
+                              }}
+                            >
+                              <div className="flex h-5 w-5 items-center justify-center rounded-full border border-amber-400 bg-amber-500/30 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.5)]">
+                                <span className="text-[10px] font-bold leading-none">!</span>
+                              </div>
+                              <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap rounded border border-amber-400/80 bg-black/90 px-2 py-1 text-[9px] font-mono text-amber-200 shadow-xl">
+                                {feat.name || feat.type}:{" "}
+                                {feat.diameterMeters
+                                  ? `${(feat.diameterMeters / 1000).toFixed(1)}km`
+                                  : "Obstacle"}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  );
+                })()
+              )}
           </div>
         </div>
 
@@ -346,10 +443,23 @@ export function LunarMapPanel({
           {activeLayer.attribution}
         </div>
 
-        {/* Coordinate Status Indicator (Floating Bottom-Right) */}
-        <div className="absolute right-4 bottom-4 z-10 flex items-center gap-1.5 rounded-lg bg-[#0c1524]/90 px-3 py-1.5 border border-sky-400/30 text-xs font-mono text-sky-300 shadow-lg backdrop-blur-sm">
-          <Crosshair className="h-3.5 w-3.5 text-sky-400" />
-          <span>Selected: {latitude.toFixed(2)}°, {longitude.toFixed(2)}°</span>
+        {/* Bottom-Right Controls: Coordinate Status & 3D Simulation Entry Button */}
+        <div className="absolute right-4 bottom-4 z-10 flex flex-col sm:flex-row items-end sm:items-center gap-2">
+          {/* Coordinate Status Indicator */}
+          <div className="flex items-center gap-1.5 rounded-lg bg-[#0c1524]/90 px-3 py-1.5 border border-sky-400/30 text-xs font-mono text-sky-300 shadow-lg backdrop-blur-sm">
+            <Crosshair className="h-3.5 w-3.5 text-sky-400" />
+            <span>Selected: {latitude.toFixed(2)}°, {longitude.toFixed(2)}°</span>
+          </div>
+
+          {/* Phase 12: 3D Simulation Entry Button */}
+          <Link
+            href="/3d-simulation"
+            aria-label="Navigate to 3D Simulation"
+            className="flex items-center gap-1.5 rounded-lg bg-[#0c1524]/90 px-3 py-1.5 border border-sky-400/40 text-xs font-semibold text-white shadow-lg backdrop-blur-sm transition-all duration-150 hover:bg-sky-500/25 hover:border-sky-300 hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95"
+          >
+            <Box className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
+            <span>3D Simulation</span>
+          </Link>
         </div>
       </div>
     </section>

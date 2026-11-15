@@ -62,7 +62,7 @@ describe("JPL Horizons Service & API Contract", () => {
       missionTimeUtc: "12:00",
     });
 
-    expect(url).toContain("https://ssd-api.jpl.nasa.gov/horizons.api");
+    expect(url).toContain("https://ssd.jpl.nasa.gov/api/horizons.api");
     expect(url).toContain("format=json");
     expect(url).toContain("COMMAND=%2710%27");
     expect(url).toContain("CENTER=%27coord%40301%27");
@@ -291,6 +291,65 @@ $$EOE
     expect(res.sun).toBeUndefined();
     expect(res.earth).toBeUndefined();
     expect(res.error).toContain("Network connection dropped");
+  });
+
+  it("handles partial failure gracefully when Sun succeeds but Earth fails", async () => {
+    const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("COMMAND=%2710%27")) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-type": "application/json" }),
+          json: async () => MOCK_HORIZONS_SUN_SUCCESS,
+        };
+      }
+      return {
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        text: async () => "Horizons service error for Earth target",
+        headers: new Headers(),
+      };
+    });
+
+    const res = await queryMissionEphemerides(
+      coords,
+      "2028-01-15",
+      "12:00",
+      { fetchFn: mockFetch as unknown as typeof fetch }
+    );
+
+    expect(res.success).toBe(true);
+    expect(res.status).toBe("partial");
+    expect(res.sun).toBeDefined();
+    expect(res.sun?.azimuthDeg).toBe(132.6412);
+    expect(res.sun?.geometricStatus).toBe("Above horizon");
+    expect(res.earth).toBeUndefined();
+    expect(res.earthError).toBeDefined();
+  });
+
+  it("sanitizes HTML error bodies so raw HTML never leaks into errors (HOR-UI-001)", async () => {
+    const html404 = "<html><head><title>404 Not Found</title></head><body><center><h1>404 Not Found</h1></center><hr><center>nginx</center></body></html>";
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      text: async () => html404,
+      headers: new Headers(),
+    });
+
+    const res = await queryMissionEphemerides(
+      coords,
+      "2028-01-15",
+      "12:00",
+      { fetchFn: mockFetch as unknown as typeof fetch }
+    );
+
+    expect(res.success).toBe(false);
+    expect(res.error).toBeDefined();
+    expect(res.error).not.toContain("<html");
+    expect(res.error).not.toContain("<body>");
+    expect(res.error).toContain("404 (Not Found)");
   });
 });
 

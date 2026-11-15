@@ -34,6 +34,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+voice-agent/.venv/
+voice-agent/.env*
+!voice-agent/.env.example
+voice-agent/frontend/node_modules/
+voice-agent/frontend/.next/
 
 # vercel
 .vercel

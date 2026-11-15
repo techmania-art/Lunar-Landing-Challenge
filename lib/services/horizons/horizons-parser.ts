@@ -2,6 +2,7 @@ import type {
   HorizonsCelestialPosition,
   HorizonsTarget,
   HorizonsRawApiResponse,
+  GeometricHorizonStatus,
 } from "./horizons-types";
 
 export class HorizonsParseError extends Error {
@@ -9,6 +10,19 @@ export class HorizonsParseError extends Error {
     super(message);
     this.name = "HorizonsParseError";
   }
+}
+
+/**
+ * Evaluates geometric horizon status based on angular elevation and a documented tolerance (default: 0.25°).
+ */
+export function getGeometricHorizonStatus(
+  elevationDeg: number,
+  toleranceDeg: number = 0.25
+): GeometricHorizonStatus {
+  if (!Number.isFinite(elevationDeg)) return "Unknown";
+  if (elevationDeg > toleranceDeg) return "Above horizon";
+  if (elevationDeg < -toleranceDeg) return "Below horizon";
+  return "Near geometric horizon";
 }
 
 /**
@@ -103,6 +117,7 @@ export function parseHorizonsApiResponse(
     targetName,
     azimuthDeg: Number(azimuth.toFixed(4)),
     elevationDeg: Number(elevation.toFixed(4)),
+    geometricStatus: getGeometricHorizonStatus(elevation),
     isGeometricAboveHorizon: elevation > 0,
     observationTimeUtc,
     retrievedAtUtc: new Date().toISOString(),

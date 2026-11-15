@@ -11,34 +11,25 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
-describe("Phase 6 Analysis Background Integration in Mission Workspace", () => {
-  it("renders video element with autoPlay, muted, loop, and playsInline attributes", () => {
+describe("Analysis Background Component Replacement with Horizon.jpg", () => {
+  it("renders with Horizon.jpg background, cover sizing, centered position, and full-viewport dimensions", () => {
+    const { container } = render(<AnalysisBackground />);
+    const bgDiv = container.querySelector("div[style*='Horizon.jpg']");
+
+    expect(bgDiv).not.toBeNull();
+    const style = bgDiv?.getAttribute("style") || "";
+    expect(style).toContain("/images/Horizon.jpg");
+    expect(style).toContain("background-size: cover");
+    expect(style).toContain("background-position: center");
+    expect(style).toContain("background-repeat: no-repeat");
+    expect(style).toContain("width: 100vw");
+    expect(style).toContain("height: 100vh");
+  });
+
+  it("confirms no video or animated background is rendered by AnalysisBackground", () => {
     const { container } = render(<AnalysisBackground />);
     const video = container.querySelector("video");
-
-    expect(video).not.toBeNull();
-    expect(video?.hasAttribute("autoplay")).toBe(true);
-    expect(video?.hasAttribute("loop")).toBe(true);
-    expect(video?.hasAttribute("playsinline")).toBe(true);
-    expect(video?.muted).toBe(true);
-    expect(video?.getAttribute("aria-hidden")).toBe("true");
-  });
-
-  it("points video source to local MP4 asset", () => {
-    const { container } = render(<AnalysisBackground />);
-    const sources = container.querySelectorAll("video source");
-
-    expect(sources.length).toBeGreaterThanOrEqual(1);
-    const srcList = Array.from(sources).map((s) => s.getAttribute("src"));
-    expect(srcList).toContain("/animations/analysis-background.mp4");
-  });
-
-  it("includes static fallback layer for reduced-motion and loading fallback", () => {
-    const { container } = render(<AnalysisBackground />);
-    const fallback = container.querySelector(
-      "div[style*='lunar-mission-background.png']"
-    );
-    expect(fallback).not.toBeNull();
+    expect(video).toBeNull();
   });
 
   it("verifies the Phase 2 Landing Page does NOT render a video element", () => {
@@ -47,11 +38,13 @@ describe("Phase 6 Analysis Background Integration in Mission Workspace", () => {
     expect(video).toBeNull();
   });
 
-  it("verifies MissionWorkspace renders AnalysisBackground with looping video behind workspace", () => {
+  it("verifies MissionWorkspace renders AnalysisBackground with Horizon.jpg behind workspace", () => {
     const { container } = render(<MissionWorkspace />);
+    const bgDiv = container.querySelector("div[style*='Horizon.jpg']");
+    expect(bgDiv).not.toBeNull();
+
+    // Video must not be rendered anywhere in MissionWorkspace
     const video = container.querySelector("video");
-    expect(video).not.toBeNull();
-    expect(video?.hasAttribute("loop")).toBe(true);
-    expect(video?.hasAttribute("autoplay")).toBe(true);
+    expect(video).toBeNull();
   });
 });

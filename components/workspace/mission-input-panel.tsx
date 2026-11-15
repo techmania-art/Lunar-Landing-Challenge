@@ -10,24 +10,31 @@ import {
   Play,
   AlertCircle,
 } from "lucide-react";
+import { SolarEnergy, type SolarFormValues } from "@/components/mission/solar-energy";
 import type { RawMissionFormValues } from "@/lib/validation/mission-input-schema";
 import type { FormValidationErrors } from "@/types/mission";
 
 export interface MissionInputPanelProps {
   formValues: RawMissionFormValues;
   errors: FormValidationErrors;
+  solarValues?: SolarFormValues;
+  solarErrors?: Partial<Record<keyof SolarFormValues, string>>;
   isStale: boolean;
   isLoading: boolean;
   onChange: (field: keyof RawMissionFormValues, value: string) => void;
+  onSolarChange?: (field: keyof SolarFormValues, value: string) => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }
 
 export function MissionInputPanel({
   formValues,
   errors,
+  solarValues = {},
+  solarErrors = {},
   isStale,
   isLoading,
   onChange,
+  onSolarChange = () => {},
   onSubmit,
 }: MissionInputPanelProps) {
   return (
@@ -195,6 +202,13 @@ export function MissionInputPanel({
               </p>
             )}
           </div>
+
+          {/* Solar Energy Configuration (Phase 8 Accordion with Lightning) */}
+          <SolarEnergy
+            values={solarValues}
+            onChange={onSolarChange}
+            errors={solarErrors}
+          />
         </div>
 
         {/* Footer actions */}

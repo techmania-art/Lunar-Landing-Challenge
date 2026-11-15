@@ -1,83 +1,112 @@
-# Code Standards
+# Development Workflow
 
-## General
+## Approach
 
-- Keep modules small and single-purpose.
-- Fix root causes; do not layer workarounds.
-- Do not mix UI composition, API retrieval, scientific calculations, and data persistence.
-- Respect the boundaries in `architecture-context.md`.
-- Reuse existing repository conventions before introducing new dependencies.
+Build the Lunar Mission Planner incrementally using a spec-driven workflow. The context files define the product, architecture, UI, standards, and current progress. Implement against these specifications; do not invent scientific behavior or silently substitute mock data for real results.
 
-## TypeScript
+## Scoping Rules
 
-- Strict mode is required.
-- Avoid `any`; use explicit interfaces or narrowly scoped types.
-- Validate unknown external input at system boundaries.
-- Use explicit units in names, such as `azimuthDegrees`, `elevationMeters`, and `timeUtc`.
-- Prefer discriminated unions for loading, success, partial, and error states.
-- Do not use magic numbers for scientific thresholds without documenting the source and meaning.
+- Work on one feature unit or subsystem at a time.
+- Prefer small, verifiable increments over broad speculative changes.
+- Keep UI composition, map integration, external data retrieval, astronomical calculations, terrain analysis, and report export in separate responsibilities.
+- Do not combine unrelated UI and backend changes in one implementation step unless an end-to-end slice requires it.
 
-## Next.js and React
+## Recommended Implementation Order
 
-- Default to React Server Components.
-- Add `"use client"` only when browser interactivity, hooks, map interaction, animation, or client state requires it.
-- Keep route handlers focused on validation, orchestration, and response shaping.
-- Keep external provider clients and analysis logic in shared modules, not inside visual components.
-- Read the installed Next.js documentation before using APIs that may have changed.
+1. Inspect the existing repository and current Next.js documentation.
+2. Establish the application shell and theme using the existing design tokens.
+3. Implement the mission input form and validation.
+4. Implement the lunar map panel and coordinate marker using the chosen map/data integration.
+5. Implement the analysis panel's loading, completed, partial, and error states using clearly labelled mock data.
+6. Add the Horizons data service and validate observer/time configuration.
+7. Add lunar terrain data retrieval and terrain-horizon/obstruction calculations.
+8. Connect real analysis results to the dashboard.
+9. Implement site/date comparison if included in the active scope.
+10. Implement PDF export only after the report data contract is stable.
 
-## Styling
+## Handling Missing Requirements
 
-- Use CSS custom property tokens defined in `globals.css` and mapped to Tailwind tokens via `@theme inline`.
-- Do not introduce raw Tailwind palette classes such as `zinc-*` or arbitrary hardcoded colors in components.
-- Follow the existing project tokens and the dark theme defined in `ui-context.md`.
-- Use consistent radius conventions: `rounded-xl` for small controls, `rounded-2xl` for cards/panels, and `rounded-3xl` for large overlays.
-- Keep contrast high and ensure the lunar background does not make text or controls difficult to read.
+- Do not invent product behavior that is not defined in the context files.
+- If a requirement is ambiguous, add it to `progress-tracker.md` under Open Questions before implementing it.
+- If an external data source does not provide a required field or API, document the limitation and propose a verified alternative.
+- Do not present illustrative values as live NASA/JPL measurements.
 
-## Components
+## UI and Foundation Components
 
-- Use shadcn/ui components where suitable.
-- Add components through the configured shadcn workflow rather than copying foundation component implementations.
-- Keep project-specific layout and behavior in app-level components.
-- Keep the UI components replaceable and driven by typed props/state.
-- Do not place provider API calls inside `SunAnalysisCard`, `EarthAnalysisCard`, or other display-only components.
+- Do not modify generated third-party foundation components unless explicitly required.
+- Keep project-specific styling and feature behavior in app-level components.
+- Use the existing shadcn/ui components and add new ones through the project's configured shadcn workflow.
+- Keep the UI replaceable: visual components must not own NASA API calls, scientific calculations, or terrain-processing logic.
 
-## API and External Data
+## Data Integrity
 
-- Validate latitude (-90 to +90) and longitude (-180 to +180).
-- Validate date and UTC time formats before querying external services.
-- Handle provider timeouts, rate limits, malformed responses, and missing fields.
-- Normalize provider responses into application-owned types.
-- Preserve source names, units, calculation timestamps, and warnings.
-- Do not silently convert missing data to zero.
-- Do not label geometric visibility as operational communication availability.
+- Validate user-provided coordinates and date/time at the boundary.
+- Keep time zones explicit; mission time is UTC.
+- Preserve units and source metadata with calculated values.
+- Distinguish geometric horizon visibility from terrain-corrected visibility.
+- Distinguish terrain visibility from a guaranteed operational communication link.
+- Treat missing or partial data as unknown/unavailable, not as zero or success.
 
-## Scientific Display
+## Keeping Docs In Sync
 
-- Always show units for angles, distances, elevations, and time windows.
-- Use UTC consistently for mission time and communication windows.
-- Distinguish geometric solar elevation from terrain-corrected illumination.
-- Distinguish geometric Earth visibility from terrain-corrected line of sight.
-- If the terrain calculation is not available, display `Unknown` or `Unavailable`.
-- Demo data must be visibly labelled as demo/illustrative.
+Update the relevant context file whenever implementation changes:
+- Product scope or user flow: `project-overview.md`
+- System boundaries, integrations, data contracts: `architecture-context.md`
+- UI structure or visual behavior: `ui-context.md`
+- Coding conventions: `code-standards.md`
+- Current implementation state: `progress-tracker.md`
 
-## Accessibility
+## Before Moving To The Next Unit
 
-- Inputs require persistent labels.
-- Buttons and map controls require accessible names.
-- Provide keyboard focus styles.
-- Do not rely on colour alone to communicate status.
-- Respect reduced-motion preferences for the Moon loading animation.
-- Keep responsive layouts usable without horizontal scrolling.
+1. The current unit works end to end within its defined scope.
+2. No invariant in `architecture-context.md` was violated.
+3. Mock data is clearly labelled and cannot be confused with real analysis.
+4. `progress-tracker.md` reflects the actual implementation state.
 
-## File Organization
+## Current Approved Development Direction — Results Page and SIS
 
-Follow the repository's existing structure. Suggested responsibility boundaries:
+The current approved work is incremental and must preserve the existing mission-planning flow.
 
-- `components/` — UI composition.
-- `lib/services/` — external data clients.
-- `lib/analysis/` — astronomical/terrain analysis orchestration.
-- `lib/validation/` — input schemas and validation.
-- `types/` — shared contracts.
-- `app/api/` — route handlers, if server endpoints are needed.
-- `public/` — static images and assets.
-- `context/` — project documentation.
+### Phase 20 — Results Background Replacement
+- Replace only the Mission Operational Results page background image with the exact local asset `Horizon.jpg`.
+- Source path on the developer's machine: `C:\Users\hp\OneDrive\Desktop\Lunar Landing\asset\Horizon.jpg`.
+- Copy the verified source image into the repository's public asset directory and reference it through a browser-safe local path.
+- Preserve the image's star field, golden celestial arc, clouded horizon, astronaut, reflective foreground, and golden reflection.
+- Handle the portrait source image on landscape viewports without non-uniform stretching. Choose and document the actual fit/crop strategy.
+- Verify source dimensions, public asset response, browser decoding, and screenshots at the target desktop/tablet/mobile sizes.
+- Scope is strictly limited to the Results page background component and necessary asset wiring. Do not modify cards, layout, navigation, calculations, SIS, LiveKit, or other page backgrounds.
+
+### Phase 21 — SIS Chatbot UI Only
+- Add a small floating SIS launcher at the bottom-right of the Mission Operational Results page.
+- Clicking it opens a compact right-side chatbot panel based on the approved warm off-white/cream UI reference.
+- Show distinct user and SIS message bubbles, welcome/empty state, suggested prompts, text composer, send control, and microphone/speaker controls as visual placeholders.
+- Support open, close, and minimize interactions plus responsive desktop/tablet/mobile behavior.
+- Static sample messages must be clearly labelled as UI preview content.
+- Do not fabricate live assistant responses.
+
+### Future SIS integration (not part of Phase 21)
+The later integration phase may connect the Results page's typed mission context to the existing backend RAG/LLM API and reuse the existing LiveKit voice implementation. Inspect existing services before modifying them. Text and voice must share the same mission-context schema and SIS behavior policy. This integration is separate from the UI-only Phase 21.
+
+### Phase completion discipline
+- Complete and verify Phase 20 independently before claiming the background is verified.
+- Complete and verify Phase 21 independently before claiming the chatbot UI is implemented.
+- Do not claim LLM, RAG, context injection, microphone, or LiveKit functionality during Phase 21.
+- Update the progress tracker with actual evidence, changed files, test results, and incomplete items.
+
+## Latest Background Requirement — Supersedes Earlier Fit Guidance
+
+The latest approved background task is to replace the current background source in the existing background component with the exact `Horizon.jpg` asset.
+
+- Source on the developer's machine: `C:\Users\hp\OneDrive\Desktop\Lunar Landing\asset\Horizon.jpg`.
+- Copy the exact file into the project's existing public/static asset directory; use a browser-safe URL.
+- Render as a full-viewport background (`100vw × 100vh`) with `background-size: cover`, `background-position: center`, and `background-repeat: no-repeat`.
+- Keep the background behind all existing UI.
+- Preserve the image aspect ratio; `cover` may crop the image depending on viewport aspect ratio. Do not stretch non-uniformly.
+- Preserve existing UI layouts, interactions, foreground animations, and functionality.
+- Do not modify backend code, add dependencies, redesign the UI, or change unrelated components/styles.
+- Verify asset loading, responsive behavior, console/network errors, and screenshots at desktop/tablet/mobile sizes.
+
+This latest explicit requirement supersedes earlier suggestions to prefer `contain` or preserve every pixel of the portrait image at all costs. Use `cover` as specified and document the actual crop at each viewport.
+
+### Context maintenance rule
+When a newer user instruction changes an existing requirement, update all relevant project context documents and remove or clearly mark superseded guidance so coding agents do not receive contradictory instructions. Keep the phase history, but identify the latest active requirement as authoritative.

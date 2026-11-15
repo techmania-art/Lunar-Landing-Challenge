@@ -2,6 +2,20 @@ import type { LunarCoordinates } from "@/lib/coordinates/lunar-coordinate-types"
 
 export type HorizonsTarget = "10" | "399"; // 10 = Sun, 399 = Earth
 
+export type HorizonsStatus =
+  | "idle"
+  | "loading"
+  | "success"
+  | "partial"
+  | "unavailable"
+  | "error";
+
+export type GeometricHorizonStatus =
+  | "Above horizon"
+  | "Below horizon"
+  | "Near geometric horizon"
+  | "Unknown";
+
 export interface HorizonsQueryParams {
   target: HorizonsTarget;
   targetName: "Sun" | "Earth";
@@ -15,6 +29,13 @@ export interface HorizonsCelestialPosition {
   targetName: "Sun" | "Earth";
   azimuthDeg: number;
   elevationDeg: number;
+  /**
+   * Geometric horizon status evaluated relative to the reference lunar sphere/ellipsoid:
+   * - "Above horizon" (elevation > +0.25°)
+   * - "Below horizon" (elevation < -0.25°)
+   * - "Near geometric horizon" (-0.25° <= elevation <= +0.25°)
+   */
+  geometricStatus: GeometricHorizonStatus;
   /**
    * Geometric visibility above the lunar sphere/ellipsoid (elevationDeg > 0).
    * Note: This is NOT terrain-unobstructed visibility; mountains/crater rims can still block the sightline.
@@ -31,10 +52,13 @@ export interface HorizonsCelestialPosition {
 
 export interface HorizonsMissionAnalysisResponse {
   success: boolean;
+  status: HorizonsStatus;
   observerCoordinates: LunarCoordinates;
   observationTimeUtc: string;
   sun?: HorizonsCelestialPosition;
   earth?: HorizonsCelestialPosition;
+  sunError?: string;
+  earthError?: string;
   error?: string;
   details?: string;
   upstreamStatus?: number;

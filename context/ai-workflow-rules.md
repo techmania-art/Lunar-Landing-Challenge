@@ -62,3 +62,33 @@ Update the relevant context file whenever implementation changes:
 2. No invariant in `architecture-context.md` was violated.
 3. Mock data is clearly labelled and cannot be confused with real analysis.
 4. `progress-tracker.md` reflects the actual implementation state.
+
+## Current Approved Development Direction — Results Page and SIS
+
+The current approved work is incremental and must preserve the existing mission-planning flow.
+
+### Phase 20 — Results Background Replacement
+- Replace only the Mission Operational Results page background image with the exact local asset `Horizon.jpg`.
+- Source path on the developer's machine: `C:\Users\hp\OneDrive\Desktop\Lunar Landing\asset\Horizon.jpg`.
+- Copy the verified source image into the repository's public asset directory and reference it through a browser-safe local path.
+- Preserve the image's star field, golden celestial arc, clouded horizon, astronaut, reflective foreground, and golden reflection.
+- Handle the portrait source image on landscape viewports without non-uniform stretching. Choose and document the actual fit/crop strategy.
+- Verify source dimensions, public asset response, browser decoding, and screenshots at the target desktop/tablet/mobile sizes.
+- Scope is strictly limited to the Results page background component and necessary asset wiring. Do not modify cards, layout, navigation, calculations, SIS, LiveKit, or other page backgrounds.
+
+### Phase 21 — SIS Chatbot UI Only
+- Add a small floating SIS launcher at the bottom-right of the Mission Operational Results page.
+- Clicking it opens a compact right-side chatbot panel based on the approved warm off-white/cream UI reference.
+- Show distinct user and SIS message bubbles, welcome/empty state, suggested prompts, text composer, send control, and microphone/speaker controls as visual placeholders.
+- Support open, close, and minimize interactions plus responsive desktop/tablet/mobile behavior.
+- Static sample messages must be clearly labelled as UI preview content.
+- Do not fabricate live assistant responses.
+
+### Future SIS integration (not part of Phase 21)
+The later integration phase may connect the Results page's typed mission context to the existing backend RAG/LLM API and reuse the existing LiveKit voice implementation. Inspect existing services before modifying them. Text and voice must share the same mission-context schema and SIS behavior policy. This integration is separate from the UI-only Phase 21.
+
+### Phase completion discipline
+- Complete and verify Phase 20 independently before claiming the background is verified.
+- Complete and verify Phase 21 independently before claiming the chatbot UI is implemented.
+- Do not claim LLM, RAG, context injection, microphone, or LiveKit functionality during Phase 21.
+- Update the progress tracker with actual evidence, changed files, test results, and incomplete items.

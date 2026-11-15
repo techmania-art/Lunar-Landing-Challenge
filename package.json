@@ -15,8 +15,11 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@livekit/components-react": "^2.9.25",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
+    "livekit-client": "^2.24.1",
+    "livekit-server-sdk": "^2.19.3",
     "lucide-react": "^1.73.0",
     "next": "16.4.6",
     "react": "19.3.0",

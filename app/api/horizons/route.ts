@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     timeStr
   );
 
-  const status = result.success ? 200 : 502;
+  const status = result.success || result.status === "partial" ? 200 : 502;
   return NextResponse.json(result, { status });
 }
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       timeStr
     );
 
-    const status = result.success ? 200 : 502;
+    const status = result.success || result.status === "partial" ? 200 : 502;
     return NextResponse.json(result, { status });
   } catch (err: unknown) {
     return NextResponse.json(

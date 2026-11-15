@@ -7,13 +7,27 @@ import type {
   HorizonsRawApiResponse,
 } from "./horizons-types";
 import { buildHorizonsRequestUrl } from "./horizons-request";
-import { parseHorizonsApiResponse, HorizonsParseError } from "./horizons-parser";
+import { parseHorizonsApiResponse } from "./horizons-parser";
 
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RETRIES = 2;
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sanitizeProviderError(status: number, statusText: string, rawBody: string): string {
+  if (rawBody.includes("<") && rawBody.includes(">")) {
+    const textOnly = rawBody
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const cleanSnippet = textOnly.slice(0, 80);
+    return `JPL Horizons returned HTTP ${status} (${statusText})${cleanSnippet ? `: ${cleanSnippet}` : ""}`;
+  }
+  return `JPL Horizons HTTP ${status} (${statusText}): ${rawBody.slice(0, 120).trim()}`;
 }
 
 export interface FetchHorizonsOptions {
@@ -75,9 +89,7 @@ export async function fetchHorizonsTarget(
           // ignore text extraction error
         }
 
-        throw new Error(
-          `JPL Horizons HTTP ${response.status} (${response.statusText}): ${errorDetails}`
-        );
+        throw new Error(sanitizeProviderError(response.status, response.statusText, errorDetails));
       }
 
       // Check content type
@@ -136,6 +148,7 @@ export async function queryMissionEphemerides(
   if (!boundaryCheck.valid) {
     return {
       success: false,
+      status: "unavailable",
       observerCoordinates: coordinates,
       observationTimeUtc,
       error: boundaryCheck.error,
@@ -143,51 +156,77 @@ export async function queryMissionEphemerides(
     };
   }
 
-  try {
-    const [sunPos, earthPos] = await Promise.all([
-      fetchHorizonsTarget(
-        {
-          target: "10",
-          targetName: "Sun",
-          coordinates,
-          missionDate,
-          missionTimeUtc,
-        },
-        options
-      ),
-      fetchHorizonsTarget(
-        {
-          target: "399",
-          targetName: "Earth",
-          coordinates,
-          missionDate,
-          missionTimeUtc,
-        },
-        options
-      ),
-    ]);
+  const [sunResult, earthResult] = await Promise.allSettled([
+    fetchHorizonsTarget(
+      {
+        target: "10",
+        targetName: "Sun",
+        coordinates,
+        missionDate,
+        missionTimeUtc,
+      },
+      options
+    ),
+    fetchHorizonsTarget(
+      {
+        target: "399",
+        targetName: "Earth",
+        coordinates,
+        missionDate,
+        missionTimeUtc,
+      },
+      options
+    ),
+  ]);
 
+  const sunPos = sunResult.status === "fulfilled" ? sunResult.value : undefined;
+  const earthPos = earthResult.status === "fulfilled" ? earthResult.value : undefined;
+  const sunError =
+    sunResult.status === "rejected"
+      ? (sunResult.reason as Error)?.message || "Failed to query Sun ephemeris"
+      : undefined;
+  const earthError =
+    earthResult.status === "rejected"
+      ? (earthResult.reason as Error)?.message || "Failed to query Earth ephemeris"
+      : undefined;
+
+  if (sunPos && earthPos) {
     return {
       success: true,
+      status: "success",
       observerCoordinates: coordinates,
       observationTimeUtc,
       sun: sunPos,
       earth: earthPos,
       disclaimer,
     };
-  } catch (err: unknown) {
-    const errorMsg =
-      err instanceof HorizonsParseError
-        ? `Horizons Data Parse Error: ${err.message}`
-        : (err as Error)?.message || "Failed to query ephemerides from JPL Horizons";
+  }
 
+  if (sunPos || earthPos) {
     return {
-      success: false,
+      success: true,
+      status: "partial",
       observerCoordinates: coordinates,
       observationTimeUtc,
-      error: errorMsg,
+      sun: sunPos,
+      earth: earthPos,
+      sunError,
+      earthError,
+      error: `Partial ephemeris retrieved: ${sunError || earthError}`,
       disclaimer,
     };
   }
+
+  const errorMsg = `Ephemerides query failed. Sun: ${sunError}; Earth: ${earthError}`;
+  return {
+    success: false,
+    status: "error",
+    observerCoordinates: coordinates,
+    observationTimeUtc,
+    sunError,
+    earthError,
+    error: errorMsg,
+    disclaimer,
+  };
 }
 

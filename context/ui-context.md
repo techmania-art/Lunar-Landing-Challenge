@@ -450,3 +450,183 @@ Data retrieval and calculation orchestration belong in service/hooks/controllers
 - [ ] PDF export is only enabled for valid analysis output.
 - [ ] Responsive desktop, tablet, and mobile layouts work.
 - [ ] UI can be replaced without rewriting API clients or analysis logic.
+
+---
+
+# Current Results Page UI Extensions
+
+This section supersedes any conflicting older background or chatbot descriptions for the Mission Operational Results page only. The landing-page hero and other page backgrounds remain unchanged unless a separate phase explicitly changes them.
+
+## Results Page Background — `Horizon.jpg`
+
+### Approved asset
+Use the exact local image supplied by the user:
+
+`C:\Users\hp\OneDrive\Desktop\Lunar Landing\asset\Horizon.jpg`
+
+Copy the exact file into the repository's public asset directory using the existing convention (for example `public/images/Horizon.jpg`) and reference it through a local browser-safe URL. Never reference the Windows absolute path in browser code.
+
+### Required composition
+The Results background must preserve and visibly display these elements:
+1. Deep star-filled sky.
+2. Large luminous golden celestial arc/ring.
+3. Bright clouded horizon.
+4. Astronaut near the horizon.
+5. Reflective dark foreground.
+6. Long golden reflection extending into the foreground.
+
+### Rendering requirements
+- Keep the background behind all Results page content.
+- Preserve the source aspect ratio; never stretch non-uniformly.
+- Do not blindly use `cover` on wide screens if it crops important image details.
+- Evaluate `contain` with a tasteful dark side fill or a controlled image layer for wide desktop viewports.
+- Use responsive background positioning/fitting for tablet and mobile.
+- Do not tile the image.
+- Avoid unnecessary upscaling/pixelation.
+- Keep the source's dark teal/charcoal and warm gold appearance.
+- Do not add a heavy overlay that hides stars, arc, clouds, astronaut, or reflection.
+- Any image positioning, fit, filter, or overlay adjustments must be scoped to this Results background component only.
+- Do not change result-card opacity, blur, sizing, page layout, navigation, data, or other backgrounds in the background-replacement phase.
+
+### Background verification
+Verify the exact source asset, format, native dimensions, aspect ratio, file size, public asset URL/HTTP response, and successful browser decoding. Capture browser screenshots at:
+- 1920 × 1080
+- 1600 × 900
+- 1440 × 900
+- 1366 × 768
+- 1024 × 768
+- 768 × 1024
+- 390 × 844
+
+For each viewport, document the fit mode and whether any part of the image is cropped. Confirm the star field, golden arc, horizon/clouds, astronaut, foreground, and golden reflection remain visible to the extent the viewport aspect ratio permits. Do not claim the background is verified without actual browser evidence.
+
+## SIS Chatbot — Phase 21 UI Only
+
+### Launcher behavior
+- Show a small circular SIS bot icon fixed near the bottom-right corner of the Mission Operational Results page when the panel is closed.
+- Use an existing Lucide icon; no emoji.
+- Give it a subtle border and shadow so it remains visible over the background.
+- Provide an accessible label such as `Open SIS assistant`.
+- Ensure it does not cover important result values or navigation controls.
+- Clicking it opens the chatbot panel.
+
+### Panel appearance
+- Anchor a compact panel to the right side of the viewport on desktop.
+- Use a warm off-white/cream surface with dark readable text, subtle warm border, rounded corners, and a soft shadow.
+- Use restrained copper/terracotta accents for SIS identity and primary controls.
+- Approximate desktop width: 360–420 px, constrained by viewport width.
+- Approximate desktop height: 70–85 vh, constrained to viewport bounds.
+- Use a vertical flex layout: header, scrollable conversation, voice controls, composer.
+- Keep the underlying Results page visible and do not resize or distort its cards.
+
+### Header
+Include:
+- SIS icon/avatar.
+- Title: **SIS Assistant**.
+- Subtitle: **LMP · Super Intelligent System**.
+- A truthful local status such as **UI preview** or **Ready**.
+- Minimize and close controls.
+
+Do not show `AI connected`, `LiveKit connected`, or another live connection claim in this UI-only phase.
+
+### Conversation
+- SIS messages align left with a soft cream/tan bubble.
+- User messages align right with a contrasting pale blue/cyan bubble.
+- Keep message text readable and multiline.
+- Conversation area scrolls independently.
+- Initial empty state welcome text:
+  `Hello, I'm SIS, your Lunar Mission Assistant. I can help you explore the mission results displayed on this page.`
+- Suggested prompt chips:
+  - `Explain my power situation`
+  - `What does geometric horizon blocked mean?`
+  - `What information is missing for rover energy analysis?`
+- Suggested prompts may populate the composer but must not generate fabricated assistant answers.
+- Any sample conversation must be explicitly labelled as a UI preview and must not use screenshot values as real mission context.
+
+### Composer and voice placeholders
+- Text input placeholder: `Ask SIS about your mission...`
+- Include a send button and disabled empty-input state.
+- No API request or live assistant response in Phase 21.
+- Show microphone and speaker controls as visual placeholders.
+- Clicking a voice placeholder may display:
+  `Voice interaction will be connected in a later integration phase.`
+- Do not request microphone permission, start recording, play audio, or connect to LiveKit.
+
+### Panel interactions
+- Open from the floating launcher.
+- Close returns to the launcher.
+- Minimize collapses the panel into a compact launcher/tab.
+- Local preview messages may remain while the page session is active.
+- No server persistence or cross-session memory in this phase.
+
+### Responsive behavior
+- Desktop: fixed right-side panel, approximately 360–420 px wide.
+- Tablet: constrained panel/drawer that remains within viewport bounds.
+- Mobile: near-full-screen drawer/modal with reachable close control and composer.
+- Conversation scrolls independently.
+- Avoid horizontal overflow and overlap with essential navigation.
+- Respect safe viewport insets and on-screen keyboard behavior.
+
+### Accessibility
+- Semantic buttons and accessible names for icon-only controls.
+- Keyboard navigation and visible focus states.
+- Sufficient text/background contrast.
+- Do not rely on color alone.
+- Respect reduced-motion preferences.
+- Keep focus behavior sensible when opening/closing the panel.
+
+### Strict Phase 21 boundary
+Phase 21 is frontend UI only. Do not add:
+- LLM calls or provider credentials.
+- RAG retrieval/ingestion.
+- Mission context builder or context injection.
+- Backend chat endpoints.
+- LiveKit connection, token handling, audio, transcription, or speech synthesis.
+- Fake live responses.
+
+## Future SIS Integration (Separate Phase)
+
+A later phase may integrate the assistant with the existing RAG/LLM backend and existing LiveKit voice implementation. The intended behavior is to build a typed, versioned mission context from the same Results page state used by the result cards, pass it securely through the backend to the existing RAG/LLM service, and provide the same context and assistant policy to the existing LiveKit agent. Voice transcripts and assistant replies should appear in the same conversation history as typed messages.
+
+This future integration must preserve missing, stale, partial, error, and not-evaluated states; never invent measurements; distinguish geometric visibility from operational radio capability; and remain decision support rather than autonomous mission authority. Do not represent this future capability as implemented by Phase 21.
+
+---
+
+# Latest Active Background Component Specification
+
+This section supersedes earlier conflicting background sizing/fit recommendations for the current webpage background replacement.
+
+## Exact asset
+Use the exact image from the developer's machine:
+
+`C:\Users\hp\OneDrive\Desktop\Lunar Landing\asset\Horizon.jpg`
+
+Copy it unchanged into the existing public/static asset directory (for example `public/images/Horizon.jpg`) and reference it using a browser-safe local path such as `/images/Horizon.jpg`. Never use the Windows absolute path in browser code. If the source file is missing, stop and report it; do not substitute another image.
+
+## Rendering
+- Replace the source in the existing background component.
+- Fill the viewport: `100vw × 100vh`.
+- `background-size: cover`.
+- `background-position: center`.
+- `background-repeat: no-repeat`.
+- Preserve natural aspect ratio; `cover` can crop image edges depending on viewport shape.
+- Do not stretch non-uniformly or tile the image.
+- Keep the background behind all existing UI and prevent it from intercepting interaction.
+- Do not create a duplicate background layer.
+
+## Strict scope
+Only the existing background component and minimum asset wiring may change. Do not alter page layout, navigation, cards, typography, foreground animations, interactions, mission results, backend, SIS, LiveKit, RAG/LLM, global styles, other pages, or unrelated components. Do not add dependencies or redesign the UI.
+
+## Required verification
+- Verify exact source file, JPEG validity, native dimensions and file size.
+- Confirm copied asset matches source dimensions.
+- Confirm browser asset URL loads successfully.
+- Test 1920×1080, 1600×900, 1440×900, 1366×768, 1024×768, 768×1024, and 390×844 where possible.
+- Confirm viewport coverage, centered positioning, no repetition, no non-uniform stretching, and correct stacking behind UI.
+- Document the actual crop at each tested viewport; `cover` does not guarantee the full image is visible.
+- Confirm existing UI interactions and foreground animations still work.
+- Check browser console and network for errors.
+- Capture screenshots at minimum 1920×1080, 1366×768, and 390×844.
+
+## Phase status
+This is a background-component source replacement only. It does not change the SIS chatbot UI-only Phase 21 boundary or authorize LLM/RAG/LiveKit integration. Report `BACKGROUND REPLACEMENT: VERIFIED` only after evidence-based checks pass; otherwise report `PARTIAL` or `NOT VERIFIED`.
