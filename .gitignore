@@ -32,13 +32,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# lunar terrain data (downloaded source and processed outputs stay local)
+data/lunar-terrain/
+
 # env files (can opt-in for committing if needed)
 .env*
+# python virtual environments
+.venv/
+.venv-terrain/
 voice-agent/.venv/
 voice-agent/.env*
 !voice-agent/.env.example
 voice-agent/frontend/node_modules/
 voice-agent/frontend/.next/
+
+# temp files
+tmp-moon-trek-capabilities.xml
 
 # vercel
 .vercel

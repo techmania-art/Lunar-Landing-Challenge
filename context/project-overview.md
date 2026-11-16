@@ -134,10 +134,10 @@ Combines astronomical directions with terrain data to assess local illumination 
 ### Out Of Scope Unless Explicitly Added
 
 - Autonomous landing-site selection or safety certification.
-- Flight control or rover control.
+- Commanding or controlling physical spacecraft/rover hardware.
 - Guaranteeing operational radio communication without link-budget and hardware modelling.
 - Claiming complete terrain visibility where terrain data is missing.
-- Mission simulation beyond the available data and documented calculations.
+- Flight/spacecraft trajectory simulation and autonomous rover control. The separately approved lunar-surface rover visualization is in scope only as described in the 3D simulation feature section; it is not a certified route-safety or full-physics simulator.
 - Authentication, saved projects, collaboration, billing, or enterprise access unless separately required.
 
 ## Success Criteria
@@ -192,3 +192,57 @@ Copy the exact asset into the project's public/static directory and reference it
 Only the background component and necessary asset wiring may change. Existing UI layouts, interactions, foreground animations, mission results, backend, and other components must remain unchanged. No new dependencies or redesign.
 
 This is the latest active instruction and supersedes older `contain`/full-composition-preservation recommendations for the current background replacement.
+
+
+## New Approved Feature — 3D Lunar-Surface Rover Simulation
+
+**Status: planned / not yet implemented.**
+
+Lunar Mission Planner will add a 3D surface simulation that lets users configure a rover traverse between lunar coordinates, view the selected lunar region in 3D, and inspect terrain-related hazards ahead of the rover. This is an additional decision-support feature. It does not replace the existing 2D lunar map, mission-analysis dashboard, results page, or SIS assistant.
+
+### What the feature will do
+
+- Render a 3D Moon using CesiumJS, with a documented lunar reference ellipsoid rather than Cesium's default Earth globe.
+- Use verified NASA Moon Trek WMTS imagery layers for the lunar surface texture.
+- Use a selected LOLA elevation product to create a regional 3D terrain surface when suitable data is available.
+- Let the user set source and destination coordinates.
+- Reuse the existing **General Rover** profile/configuration; do not invent rover engineering values.
+- Display a candidate traverse and animate a rover model along it.
+- In a later phase, inspect measured terrain ahead of the rover and report supported slope, depression/crater, and roughness warnings.
+- Add route alternatives only after a documented and tested terrain-cost/path-planning method exists.
+- Allow SIS to explain the simulation's validated status and hazard events in a future integration phase.
+
+### Intended impact
+
+The simulation will make lunar topography and traverse risks easier to understand. It is intended to help students, researchers, and mission planners visualize a rover's route and recognize where terrain data suggests a potential obstacle or hazard. It supports informed planning; it does not prove that a route is safe or control a real rover.
+
+### Data and accuracy boundaries
+
+- Moon Trek WMTS imagery and LOLA elevation are different products. Imagery tiles provide visual texture, not elevation values.
+- Read the WMTS GetCapabilities metadata before configuring a layer, projection, tile matrix, or URL.
+- LOLA data product resolution, projection, units, vertical reference, and no-data values must be verified for the exact region.
+- Coarse elevation grids do not guarantee small-rock/boulder detection. That requires suitable higher-resolution data and a validated method.
+- Keep visual model collision checks separate from scientific DEM-derived hazard analysis.
+- Missing, stale, low-resolution, or out-of-coverage terrain must be labelled unknown/unavailable rather than safe.
+- A straight route line or animated rover path is only a candidate traverse until terrain-aware planning is implemented.
+
+### Planned development sequence
+
+1. **Phase 2 — Cesium dependency setup:** install CesiumJS, copy runtime assets, configure client-only loading, and verify the setup. No globe or rover behavior yet.
+2. **Phase 3 — Moon Trek globe:** load one metadata-verified global/equirectangular Moon Trek imagery layer in a Cesium lunar scene.
+3. **Phase 4 — LOLA terrain:** load a suitable regional elevation subset and build a measured 3D terrain mesh.
+4. **Phase 5 — Rover and route:** reuse General Rover, add a rover model, source/destination markers, and a candidate traverse.
+5. **Phase 6 — Playback:** animate rover progress with Play/Pause/Reset controls; distinguish visual playback from physical dynamics.
+6. **Phase 7 — Hazard analysis:** scan a forward corridor using suitable measured terrain data and report potential hazards with data source, resolution, method, and uncertainty.
+7. **Phase 8 — SIS integration:** expose a validated simulation snapshot to the existing SIS backend and LiveKit agent.
+
+### User experience and visual continuity
+
+The simulator should reuse the current LMP dark aerospace theme, panels, design tokens, typography, statuses, controls, and responsive behavior. Recommended layout:
+- Left: Simulation Setup (source, destination, existing rover profile, data status).
+- Center: 3D Lunar View (Moon Trek imagery, terrain, rover, route, markers, camera controls).
+- Right: Rover Telemetry & Hazard Analysis (state, computed route progress, hazard events, coverage/warnings).
+
+Use a separate simulation route or view linked from the current workspace by default. Do not remove or replace the current 2D Lunar Map or Mission Analysis.
+
+The implementation sequence and interface contract are maintained across `ai-workflow-rules.md`, `architecture-context.md`, and `ui-context.md`. These five main context files together are the complete maintained specification.

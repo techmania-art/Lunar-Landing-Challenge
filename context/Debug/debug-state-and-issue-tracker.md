@@ -2,8 +2,8 @@
 
 **Document type:** Project-wide debug status record  
 **Purpose:** Track known bugs, affected phases, symptoms, root-cause investigation, fixes attempted/planned, test procedures, and verified status.  
-**Last updated:** 2026-11-14  
-**Current overall debug status:** `VERIFIED FIXED — LROC MAP RETRIEVED & DISPLAYED`
+**Last updated:** 2026-11-16  
+**Current overall debug status:** `READY FOR TEST — MOON TREK WMTS METADATA AND ATTACHMENT PATH HARMONIZED; BROWSER VISUAL CONFIRMATION REMAINS THE FINAL GATE`
 
 ---
 
@@ -56,6 +56,8 @@ Never change a status to `VERIFIED FIXED` without test evidence.
 | `BG-COMP-001` | Workspace, AnalysisBackground | Replace Existing Animated Background Component with `Horizon.jpg` | `VERIFIED FIXED` | High |
 | `SIS-LIVEKIT-026` | Phase 21, 24, 25, 26 | Official LiveKit React Starter UI Adaptation, Zero Dummy Data & Real-Time Agent Integration | `VERIFIED FIXED` | Critical |
 | `SIS-CHAT-027` | Phase 26 | SIS Chat No Agent Reply & LiveKit Text/Voice Agent Dispatch Debug | `VERIFIED FIXED` | Critical |
+| `SIM-003` | Phase 3 | Phase 3 Moon globe verification stack, WMTS health checks, and mission-site synchronization diagnostics | `READY FOR TEST` | Critical |
+| `SIM-004` | Phase 3 | Moon Trek imagery not visibly draping the lunar globe because the provider config and active layer attachment were not fully synchronized with the verified service metadata | `READY FOR TEST` | Critical |
 
 **Important:** These statuses describe the evidence available in the project conversation and screenshots. They are not claims about the current state of the user's local codebase. The actual repository must be inspected and tests must be run before confirming implementation status.
 
@@ -389,7 +391,111 @@ Do not call external providers on every liveness request. Do not expose secrets 
 
 ---
 
-## 8. Cross-phase debug map
+## 8. Issue SIM-003 — Phase 3 Moon globe verification and automated checks
+
+### Affected phase
+
+- Phase 3 — CesiumJS lunar globe, NASA Moon Trek imagery, active mission coordinates, and scene diagnostics.
+
+### Observed problem
+
+The simulation shell exists, but the supplied runtime evidence was weak: the viewport could render a black canvas or a blue disk without proving that the Moon globe, lunar imagery, or mission-site camera logic were actually correct. The project also lacked a consistent, typed diagnostics state for distinguishing viewer initialization, Moon ellipsoid configuration, WMTS capabilities, real tile loading, selected-site sync, and the deferred LOLA terrain status.
+
+### What is confirmed
+
+- The `/3d-simulation` route exists and is wired to a client-only Moon viewer.
+- The app is using the Moon ellipsoid and a NASA Moon Trek WMTS provider contract based on the verified `LRO_WAC_Mosaic_Global_303ppd_v02` layer metadata.
+- The real Moon Trek service responds successfully to a representative tile request at `https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/0/0/0.jpg` with `HTTP 200` and `Content-Type: image/jpeg`.
+- The application still has no locally verified LOLA DEM surface in this phase, so that component remains explicitly deferred and not marked as passed.
+
+### What is not yet confirmed
+
+- Whether the browser visual evidence shows a full Moon with recognizably mapped lunar texture rather than a blank or black canvas.
+- Whether the selected mission coordinates and the focus marker are synchronized under actual user-driven state changes.
+- Whether the runtime diagnostics UI is sufficiently truthful and non-noisy for both developers and end users.
+
+### Required resolution approach
+
+1. Add a typed simulation diagnostics model with explicit `not-checked`, `checking`, `passed`, `partial`, `failed`, and `not-applicable` states.
+2. Keep the view diagnostics separate from render logic.
+3. Verify the Moon ellipsoid scale and coordinate read operations with deterministic unit tests.
+4. Fetch and parse the live NASA Moon Trek GetCapabilities document in the runtime verification flow.
+5. Validate a representative live tile request using the service's real WMTS tile URL.
+6. Preserve the `LOLA` status as deferred until a real DEM workflow is implemented and visually confirmed.
+7. Add UI affordances to show or hide a compact diagnostics panel without redesigning the simulation screen.
+8. Record actual runtime and test evidence before claiming the issue is fixed.
+
+### How to test
+
+- Run `npm run lint`.
+- Run `npm run typecheck`.
+- Run `npm run test`.
+- Run the simulation page in a real browser and confirm the Moon viewer initializes and the diagnostics panel reports truthful states.
+- Confirm the active mission coordinates are read from stored application state.
+- Confirm live WMTS capabilities and representative tile metadata are displayed as checks instead of unverified assumptions.
+- Confirm the LOLA terrain check is reported as deferred rather than passed.
+
+### Current status
+
+`READY FOR TEST — Typed diagnostics model, live WMTS verification, and simulation-state tests are implemented. The active root cause fix aligns the provider with the verified NASA Moon Trek matrix metadata and keeps the globe base color from masking the layer; browser visual confirmation remains the final evidence gate.`
+
+---
+
+## 9. Issue SIM-004 — Moon Trek imagery rendering on the active lunar globe
+
+### Affected phase
+
+- Phase 3 — CesiumJS Moon globe rendering and NASA Moon Trek imagery attachment.
+
+### Observed problem
+
+The viewport showed a large blue lunar ellipsoid with no recognizable lunar imagery. Network and provider checks could confirm that the WAC tile endpoint and JPEG content were valid, but that evidence did not prove that the imagery was actually painted onto the active globe, nor that the globe was using a transparent base color so the imagery could remain visible.
+
+### Root cause
+
+The root cause was the request encoding mismatch between the current Cesium provider and the official NASA Moon Trek RESTful WMTS endpoint. The browser was generating KVP-style tile URLs ending in `/1.0.0/?service=WMTS...`, while the verified service contract for the sampled global lunar layer is the RESTful path:
+
+```text
+https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{TileMatrix}/{TileRow}/{TileCol}.jpg
+```
+
+The app also left the globe base color effectively opaque/blue, which masked the actual image layer behind a solid color when the provider path was wrong or not visibly attached. This created a black/blue viewport even though the tile service itself was reachable and the global WAC layer metadata was valid.
+
+### Resolution implemented
+
+The simulation now uses the RESTful Moon Trek template directly to avoid the failing KVP path:
+
+- `UrlTemplateImageryProvider` instead of the KVP-style `WebMapTileServiceImageryProvider`
+- Template: `https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg`
+- Geographic tiling scheme forced to the Moon extent: `Rectangle.fromDegrees(-180, -90, 180, 90)`
+- Globe base color set to transparent so the imagery layer remains visible instead of being visually hidden by the default blue fallback
+- Imagery layer explicitly attached with `show = true` and `alpha = 1.0`
+
+### What is confirmed
+
+- The project is using the NASA Moon Trek WAC layer metadata validated from the live capabilities and sample tile document.
+- The provider uses the exact RESTful path pattern required by the service rather than the previously rejected KVP-style request.
+- The code path is consistent with the step instructions, which require the globe to display real imagery and not merely initialize a provider object.
+- The local LOLA terrain remains explicitly deferred and not marked as complete.
+
+### Verification performed
+
+- `npm run lint` — Pass
+- `npm run typecheck` — Pass
+- `npm run test -- --run tests/simulation-page.test.tsx` — Pass
+- `npm run build` — Pass
+
+### Remaining evidence gate
+
+Browser-level visual proof is still required before this issue can be marked `VERIFIED FIXED`. The project checks confirm the request-encoding fix and repo health, but the acceptance gate in `step-fix-moon-trek-wmts-403-and-restore-moon-globe.md` requires a live screenshot showing the textured Moon in the viewport with recognizable lunar crater detail.
+
+### Current status
+
+`READY FOR TEST — The app now uses the verified RESTful Moon Trek tile template instead of the KVP route, and the repo validation checks pass; browser visual confirmation remains the final required evidence gate.`
+
+---
+
+## 9. Cross-phase debug map
 
 | Phase | Relevant functionality | Debug focus |
 |---|---|---|

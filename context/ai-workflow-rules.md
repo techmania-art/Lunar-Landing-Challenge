@@ -92,3 +92,46 @@ The later integration phase may connect the Results page's typed mission context
 - Complete and verify Phase 21 independently before claiming the chatbot UI is implemented.
 - Do not claim LLM, RAG, context injection, microphone, or LiveKit functionality during Phase 21.
 - Update the progress tracker with actual evidence, changed files, test results, and incomplete items.
+
+
+## New Approved Feature Workstream — 3D Lunar-Surface Rover Simulation
+
+**Status: planned / not implemented.** The next technical task for this workstream is the prepared Phase 2 Cesium dependency setup. This feature adds a lunar-surface rover traverse simulator while preserving all existing mission-planning, analysis-results, and SIS behavior.
+
+### Intended feature
+
+Use a CesiumJS lunar globe, NASA Moon Trek imagery services, and an appropriately selected LOLA elevation product to build a 3D lunar surface. Users configure source/destination coordinates and select the existing General Rover profile. A rover model travels along a candidate traverse; a future terrain-ahead analysis scans supported elevation/slope/roughness data and reports potential hazards.
+
+This is a surface rover simulation, not an Earth-to-Moon spacecraft trajectory simulation.
+
+### 3D simulation implementation sequence
+
+1. **Phase 2 — Cesium dependencies:** audit the repository/package manager, install compatible stable `cesium`, copy its required runtime assets into `public/cesium/`, configure `CESIUM_BASE_URL`, and verify client-only loading. No globe or rover logic in this phase.
+2. **Phase 3 — Moon Trek globe:** inspect official WMTS GetCapabilities metadata, then add one verified global/equirectangular Moon Trek imagery layer to a client-only Cesium scene using a documented lunar ellipsoid/reference model.
+3. **Phase 4 — LOLA terrain patch:** choose a suitable LOLA DEM/GDR subset, verify projection/units/resolution/no-data/vertical reference, and build a region-specific 3D terrain mesh. Imagery tiles are not elevation data.
+4. **Phase 5 — Rover and route:** reuse the existing General Rover definition; add an approved rover model, source/destination markers, and a clearly labelled candidate traverse.
+5. **Phase 6 — Visual playback:** add Play/Pause/Reset and rover movement along the candidate route. Do not describe visual interpolation as full physics.
+6. **Phase 7 — Terrain-ahead hazard analysis:** calculate supported slope/depression/roughness hazards from real data, report coverage/resolution/method, and add rerouting only after a tested cost model exists.
+7. **Phase 8 — SIS integration:** pass a validated simulation snapshot into the existing SIS context mechanism. Do not create a second RAG/LLM or LiveKit system.
+
+### Scope and safety rules
+
+- Keep the current 2D lunar map and the existing mission/results flow available.
+- Recommended default: put the 3D simulator on a separate route/view linked from the existing workspace, instead of replacing the current map.
+- Reuse existing design tokens and components; the 3D screen should look like the current dark aerospace workspace.
+- Use Moon Trek's published WMTS data services; do not scrape its rendered canvas or assume iframe embedding is a stable programmatic integration.
+- Read GetCapabilities before configuring layer IDs, matrix sets, tile labels, projections, extents, formats, or URLs.
+- Moon Trek imagery tiles provide texture, not terrain height. LOLA DEM/GDR is a separate elevation source.
+- Do not use Cesium's default WGS84 Earth ellipsoid or Earth terrain/basemaps for the lunar scene.
+- Use the existing General Rover profile; do not invent speed, mass, wheel, clearance, power, or battery values.
+- Coarse LOLA data cannot guarantee detection of small rocks/boulders. Require suitable high-resolution data and a validated method before reporting them.
+- A render raycast is not equivalent to a scientific terrain-hazard calculation.
+- Keep missing/partial/no-data regions unknown or unavailable, never hazard-free by default.
+- The simulator is decision support, not rover control, safety certification, or proof of a safe route.
+- Preserve SI disclosures and do not use/alter NASA logos, mission identifiers, flags, or NASA branding in SI-generated assets.
+
+The feature architecture, implementation phases, UI specification, data contracts, acceptance criteria, and open technical questions are documented across `project-overview.md`, `architecture-context.md`, `ui-context.md`, and this workflow file. Use these five main context files as the complete maintained specification; do not require a separate roadmap document.
+
+### Phase completion discipline for this workstream
+
+Complete and verify each phase independently before starting the next. Update `progress-tracker.md` with actual changed files, commands, test results, source/data provenance, incomplete items, and evidence. Never mark an imagery, terrain, movement, or hazard-analysis stage complete solely because a visual mock-up renders.

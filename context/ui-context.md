@@ -4,7 +4,7 @@
 
 This file is the source of truth for the frontend visual design and behavior. It specifies the user-input page, mission workspace, lunar map marker, Mission Analysis loading state, and completed results.
 
-The UI must remain modular and replaceable. Do not place external API calls, astronomical calculations, terrain processing, or report-generation logic inside display components.
+The UI must remain modular and replaceable. Do not place external API calls, astronomical calculations, terrain processing, or report-generation logic inside display components. A planned 3D lunar-surface rover simulation is specified in the final section and must reuse this established visual system.
 
 ## Theme
 
@@ -630,3 +630,189 @@ Only the existing background component and minimum asset wiring may change. Do n
 
 ## Phase status
 This is a background-component source replacement only. It does not change the SIS chatbot UI-only Phase 21 boundary or authorize LLM/RAG/LiveKit integration. Report `BACKGROUND REPLACEMENT: VERIFIED` only after evidence-based checks pass; otherwise report `PARTIAL` or `NOT VERIFIED`.
+
+
+# New Feature UI — 3D Lunar-Surface Rover Simulation
+
+**Status: planned / not yet implemented.** The simulator is an additional experience. It must reuse this document's existing dark aerospace theme, design tokens, typography, panel shapes, and responsive principles. Do not redesign the current mission input, 2D Lunar Map, Mission Analysis, Results page, or SIS panel to accommodate it.
+
+## Entry point and navigation
+
+- Add a **3D Simulation** entry point/tab/action from the existing Mission Planner workspace when the simulator is implemented.
+- Default recommendation: open a separate simulation route/view so Cesium rendering and simulation state remain isolated from the existing 2D map.
+- Preserve the current 2D lunar map and analysis dashboard. Do not replace them in the Cesium dependency phase or Moon Trek globe phase.
+
+## Overall visual direction
+
+- Match the existing near-black/deep-navy background and layered dark panels.
+- Reuse the current CSS custom properties and Tailwind tokens from `globals.css` and `@theme inline`.
+- Use blue/cyan for active controls and route highlight, red for selected/source target and high-severity hazard markers, amber for warnings/partial data, green for completed status, and muted grey for unknown/unavailable.
+- Include textual labels/icons for all status states; do not use colour alone.
+- Retain Geist Sans for normal UI and Geist Mono for coordinates/numeric metadata.
+- Reuse the existing rounded-xl controls, rounded-2xl panels, subtle borders, and 8 px spacing rhythm.
+
+## Desktop layout
+
+Use three panels, closely matching the existing Mission Planner workspace:
+
+### Left panel — Simulation Setup
+
+Show:
+- **Source Location**
+  - Latitude (°)
+  - Longitude (°)
+- **Destination Location**
+  - Latitude (°)
+  - Longitude (°)
+- **Rover Profile**
+  - Reuse the existing rover profile list and exact **General Rover** definition if present.
+  - Do not invent speed, mass, wheel radius, clearance, battery capacity, or other physical specifications.
+- **Terrain Data**
+  - Imagery layer status.
+  - Elevation data status, coverage, and resolution when known.
+- A route preview / configure action if supported.
+
+Validate source and destination with the existing lunar-coordinate validation. Keep the same lunar reference convention as the map and selected LOLA product.
+
+### Center panel — 3D Lunar View
+
+Header:
+- Icon and title **3D Lunar View**.
+- Subtitle such as `Explore the selected lunar traverse in 3D`.
+- Data-layer selector only for verified Moon Trek layers.
+- Visible data attribution/credit and terrain-resolution information when available.
+
+Scene overlays:
+- Moon globe or selected regional terrain patch.
+- Source marker.
+- Destination marker.
+- Candidate route line.
+- Rover model.
+- Potential hazard markers once the terrain-analysis phase exists.
+- Optional forward scan corridor when the detector is implemented.
+
+Camera controls:
+- Zoom in/out.
+- Orbit/rotate.
+- Reset/recenter camera.
+- Focus on source, rover, destination when practical.
+- Controls must be accessible by keyboard and touch.
+- Do not show Earth basemaps, Earth terrain, or Earth ellipsoid imagery as the Moon.
+
+A Moon Trek imagery-only globe must be labelled as imagery-only until a real LOLA elevation mesh is loaded. Do not make a flat imagery layer look like measured relief by adding arbitrary random bumps.
+
+### Playback toolbar
+
+Place a compact toolbar above or below the 3D viewport:
+- Play
+- Pause
+- Reset
+- Visualization playback rate
+- Timeline/progress only if route progress is actually computed
+
+The rate control changes visual playback speed only; do not label it as the rover's physical speed. Do not show fabricated speed, battery, distance, heading, or telemetry values.
+
+### Right panel — Rover Telemetry & Hazard Analysis
+
+Show the following only when available:
+- Simulation status: Idle, Loading Imagery, Loading Terrain, Ready, Running, Paused, Hazard Detected, Blocked, Completed, Partial, or Error.
+- Rover profile name.
+- Current rover coordinates.
+- Heading/orientation.
+- Distance travelled and remaining.
+- Next potential hazard and distance ahead.
+- Hazard type/classification and warning.
+- Data source, resolution, calculation method, coverage and uncertainty.
+- Missing/stale/unavailable data warnings.
+
+If a field has not been calculated or supplied by the real General Rover profile, show `Unavailable`, `Not evaluated`, or omit it with an explanation. Never fill unknown telemetry with zero or sample values.
+
+## Hazard marker language
+
+- Selected/source marker: follow the current red selected-target style.
+- Destination marker: use a distinguishable marker style with a legend.
+- Candidate traverse: blue/cyan line.
+- High-severity potential hazard: red marker plus explicit text.
+- Moderate/uncertain warning: amber marker plus explicit text.
+- Unknown/no-data area: neutral outlined/patterned region, not green.
+- Every hazard marker should be discoverable in the right panel and carry a source/method detail.
+- Do not call a location “safe” simply because no hazard was detected.
+- Do not show a rock/boulder marker unless an appropriate high-resolution dataset and detection method are implemented.
+
+## Loading, partial, and error states
+
+- Keep the three-panel shell stable while imagery or elevation loads.
+- Separate **Loading Moon Trek Imagery** and **Loading LOLA Terrain** states.
+- Imagery may succeed while elevation fails; show an imagery-only partial state.
+- Missing coverage, invalid WMTS metadata, or DEM no-data should produce clear warnings.
+- Do not mark a step complete until its actual load/processing operation succeeds.
+- Provide Retry for recoverable loading failures.
+- Preserve source/destination and rover profile selections on errors.
+
+## Tablet and mobile
+
+- Stack in this order: Simulation Setup, 3D Lunar View, Rover Telemetry & Hazard Analysis.
+- Give the 3D viewport sufficient height and prevent it from collapsing to a thin strip.
+- Keep playback and camera controls reachable; allow compact toolbars where necessary.
+- Keep telemetry cards readable without horizontal scrolling.
+- Respect safe viewport insets, keyboard interaction, reduced-motion settings, and touch gestures.
+- Do not force the original three-column desktop layout onto mobile.
+
+## Component structure
+
+Suggested only; adapt to the actual repository:
+
+```text
+LunarSimulationPage
+├── AppHeader
+├── SimulationWorkspace
+│   ├── SimulationSetupPanel
+│   │   ├── SourceCoordinateFields
+│   │   ├── DestinationCoordinateFields
+│   │   ├── RoverProfileSelector
+│   │   └── TerrainDataStatus
+│   ├── LunarSimulationPanel
+│   │   ├── CesiumLunarScene
+│   │   ├── MoonTrekLayerSelector
+│   │   ├── SourceDestinationMarkers
+│   │   ├── CandidateRouteOverlay
+│   │   ├── RoverModel
+│   │   ├── HazardMarkers
+│   │   └── SimulationPlaybackControls
+│   └── RoverTelemetryPanel
+│       ├── SimulationStatus
+│       ├── RoverPositionCard
+│       ├── RouteProgressCard
+│       ├── HazardList
+│       └── TerrainCoverageWarnings
+└── Existing SIS Assistant (future context integration only)
+```
+
+The scene and display components may subscribe to typed simulation state but must not fetch NASA data or implement terrain/hazard calculations directly.
+
+## Accessibility and interaction requirements
+
+- Use semantic buttons and accessible labels for camera and playback controls.
+- Make Play/Pause state available to assistive technology.
+- Provide keyboard access and visible focus states.
+- Announce newly detected hazards and simulation completion with an appropriate live region without repeatedly interrupting screen readers.
+- Do not rely on colour alone for severity/status.
+- Respect `prefers-reduced-motion`.
+- Preserve readable contrast over the 3D scene; use restrained panel surfaces rather than heavy overlays that obscure the Moon.
+
+## UI acceptance checklist
+
+- [ ] A 3D Simulation entry point exists without removing current navigation or 2D map functionality.
+- [ ] Simulation Setup uses source/destination coordinates and the actual General Rover profile.
+- [ ] The 3D Lunar View uses a Moon-specific model and verified Moon Trek layer attribution.
+- [ ] Image-only and elevation-enabled states are clearly distinguished.
+- [ ] Source, destination, candidate route, rover and camera controls are visible and usable.
+- [ ] Playback controls affect the actual simulation state.
+- [ ] Telemetry displays only calculated or supplied values.
+- [ ] Hazard markers and telemetry are synchronized.
+- [ ] Unknown and no-data areas never appear hazard-free by default.
+- [ ] Loading, partial, blocked, completed and error states are clear.
+- [ ] Desktop, tablet and mobile layouts work without horizontal overflow.
+- [ ] Existing Mission Input, 2D Lunar Map, Mission Analysis, Results and SIS UI remain intact.
+
+For technical boundaries, implementation phases, and data rules, use `architecture-context.md` and `ai-workflow-rules.md`. These are part of the five main project context files; no separate roadmap document is required.

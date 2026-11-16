@@ -110,3 +110,66 @@ This latest explicit requirement supersedes earlier suggestions to prefer `conta
 
 ### Context maintenance rule
 When a newer user instruction changes an existing requirement, update all relevant project context documents and remove or clearly mark superseded guidance so coding agents do not receive contradictory instructions. Keep the phase history, but identify the latest active requirement as authoritative.
+
+
+## 3D Simulation — Additional Coding Standards
+
+> Source note: the uploaded file named `code-standards.md` contains a copy of the Development Workflow document (plus the latest background rule), rather than a standalone set of coding conventions. Its supplied content is preserved above. The following section adds simulation-specific standards without silently replacing the source material.
+
+### TypeScript and state
+
+- Use strict TypeScript; avoid `any`. Use explicit discriminated unions for simulation state, terrain-data status and hazard categories.
+- Keep one canonical simulation state for the scene and telemetry panel.
+- Use explicit units in property names (`latitudeDegrees`, `distanceAheadMeters`, `elevationMeters`, `headingDegrees`).
+- Keep coordinates, source/destination, route progress, data provenance and hazard events typed.
+- Preserve `null`, unavailable, unknown, partial, stale and no-data conditions; never coerce them to zero or success.
+- Validate user inputs and external data at module boundaries.
+- Do not store a second stale copy of source/destination coordinates when an authoritative mission/simulation state already exists.
+
+### Cesium and Next.js
+
+- Cesium initialization must occur in browser-only client code; dynamically import it where required to avoid server-side rendering failures.
+- Set `window.CESIUM_BASE_URL` before importing Cesium.
+- Keep Cesium runtime asset copying idempotent and limited to the Cesium folders under `public/cesium/`.
+- Clean up Cesium Viewer instances, event listeners, animation callbacks, entities, primitives and data sources when components unmount or relevant state changes.
+- Do not create a Viewer on every React render.
+- Do not leave Cesium's default WGS84 Earth model or default Earth imagery/terrain in a lunar scene.
+- Do not expose access tokens or privileged provider credentials in client code.
+
+### Geospatial and data processing
+
+- Read and validate WMTS GetCapabilities before coding a Moon Trek layer.
+- Do not guess layer IDs, styles, tile matrix sets, tile labels, projections, extents, image format or endpoints.
+- Keep raster retrieval, projection conversion, DEM parsing, mesh generation and hazard calculations out of React view components.
+- Record lunar coordinate convention, CRS/frame, vertical datum, units, resolution, no-data values, product/source version, retrieval time and processing method.
+- Never treat image pixels or WMTS tiles as elevation measurements.
+- Do not present synthetic/test terrain as NASA-measured terrain.
+- Check memory use and tile/DEM subset sizes. Do not download entire global products when a regional subset is sufficient.
+
+### Rover simulation and hazards
+
+- Reuse the existing General Rover profile; do not invent engineering parameters.
+- Clearly label visual interpolation as visual playback, not full rover physics.
+- Keep rendering collisions/raycasts distinct from terrain-derived hazard analysis.
+- Thresholds for slope, roughness, crater boundaries or other hazards must be documented and tested.
+- Only emit rock/boulder detections when supported by appropriate high-resolution data and a validated detector.
+- A no-hazard result is not proof of a safe route.
+- Route replanning requires an explicit cost model and validated pathfinding implementation.
+- Do not claim that collision was avoided unless the implemented simulation actually computed that outcome.
+- Keep UI rendering, NASA data services, terrain transforms, route calculations and hazard logic in separate modules.
+
+### UI and performance
+
+- Reuse existing CSS tokens and shadcn/ui components. Do not scatter hard-coded colors or add a competing visual theme.
+- Keep the 3D viewport responsive and avoid rendering hidden/duplicate WebGL viewers.
+- Respect reduced motion and provide keyboard/touch alternatives for camera and playback controls.
+- Ensure that the 3D scene cleans up resources to prevent WebGL context leaks.
+- Use explicit loading, partial, unavailable and error states.
+- Add tests for coordinate transforms, route interpolation, state transitions, DEM no-data handling, hazard thresholds and synchronization between scene and telemetry.
+
+### AI/SI provenance
+
+- Record the source and licence/provenance for rover models and any textures.
+- Clearly label illustrative or synthetic terrain as illustrative; never mix it into measured terrain calculations.
+- Follow the challenge's SI disclosure rules for AI-generated images/videos, audio, code and data.
+- Do not generate, alter, or include NASA logos, flags, mission identifiers or NASA design elements in SI-generated assets.

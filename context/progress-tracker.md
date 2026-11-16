@@ -4,6 +4,24 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
+- **Phase 35 Completed (2026-11-16):** Render Prepared LOLA Data as Local 3D Lunar Terrain (`phase-35-render-local-3d-lunar-terrain.md`).
+- Objective Achieved: Successfully integrated and rendered the verified Phase 34 LOLA 10 m terrain package (`data/lunar-terrain/processed/site_89_50S_00_00E/terrain-manifest.json`) as real, non-flat 3D elevation geometry in the Cesium lunar simulation (`/3d-simulation`), preserving the NASA Moon Trek global imagery globe, adding seamless mode transitions (Global Moon ↔ Local 3D Terrain), camera presets (Top Nadir, Oblique, Ground), vertical exaggeration controls (1.0× default with explicit "VISUALIZATION ONLY" banner for >1.0×), truthful diagnostic status reporting, and capturing 5 verification screenshots.
+- Deliverables:
+  - Typed Contracts: `lib/services/terrain/terrain-package-types.ts` (manifest schema, polar stereographic projections, bounding box verification)
+  - Data Serving API: `app/api/terrain/package/route.ts` (manifest, binary heightmaps, quality counts, preview with path validation and cache headers)
+  - Binary Loader: `lib/services/terrain/terrain-package-loader.ts` (Float32 binary grid decoder with scale/offset and NaN masking)
+  - 3D Mesh Generator: `lib/services/terrain/terrain-mesh-builder.ts` (Moon-centred Cartesian projection $R = 1,737,400\text{ m}$, central-difference normal calculations, WebGL chunking, GLSL elevation ramp and regolith hillshade Cesium materials)
+  - UI & Controls: `components/simulation/lunar-simulation-page.tsx` (view mode switching, Top/Oblique/Ground camera animations, 1.0×–2.0× exaggeration slider with warning tag, truthful runtime diagnostics)
+  - Verified Screenshots Captured:
+    - `phase-35-1-global-moon.png` (Global Moon mode with site pin)
+    - `phase-35-2-local-terrain-top.png` (Local 3D Terrain Top Nadir view)
+    - `phase-35-3-local-terrain-oblique.png` (Local 3D Terrain Oblique view showcasing crater elevation relief)
+    - `phase-35-4-local-terrain-ground.png` (Ground-level surface horizon view)
+    - `phase-35-5-out-of-coverage.png` (Truthful out-of-coverage notice for coordinates outside the 10 km South Pole crop)
+  - Test Suite: 6 new unit tests in `tests/terrain-package.test.ts` passing (all 143 Vitest tests pass across 17 files); 0 TypeScript errors; 0 ESLint errors; production build (`next build`) 100% successful across all 16 routes.
+
+## Previous Phase
+
 - **Phase 30 Completed (2026-11-15):** Deploy the Existing SIS Python Agent to LiveKit Cloud (`phase-30-deploy-sis-python-agent-to-livekit-cloud.md`).
 - Objective Achieved: Successfully deployed the existing Python SIS voice and text agent (`voice-agent/`) directly to LiveKit Cloud using `lk agent create` in region `ap-south` (Mumbai) under agent name `lmp-sis-agent` (Agent ID: `CA_PsBMYjoQSUhx`, Version: `r8JYyWsUWjAq`). Configured secure cloud runtime secrets (`GOOGLE_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `SIS_AGENT_NAME`). Stopped all local Python processes and verified end-to-end operation through the Next.js workspace UI (`http://localhost:3000/workspace`): session token minting, room creation, WebRTC data channel telemetry sync (Rev 2), and multi-turn conversational responses streamed by Google Gemini 3.5 Flash Lite from the LiveKit Cloud container.
 - Deliverables:
@@ -46,6 +64,70 @@ Update this file whenever the current phase, active feature, or implementation s
 ## Current Goal
 
 - Phase 26 complete; ready for future operational enhancements or expanded mission context RAG features.
+- Phase 3 verification work is now focused on a truthful runtime diagnostics stack, WMTS capability/tile checks, and active mission-state synchronization tests rather than simple shell verification.
+- The current Moon Trek rendering debug identified the actual root cause as a KVP WMTS request mismatch and corrected it by switching the active Cesium imagery provider to the verified NASA RESTful tile template (`.../default/default028mm/{z}/{y}/{x}.jpg`), while keeping the globe base transparent to avoid masking the lunar texture; browser visual confirmation remains the final acceptance gate.
+- Active 3D lunar viewer work remains at the global Moon-shell stage. The user-confirmed local LOLA patch is now prepared and verified under Phase 34; integrating and rendering that terrain remains a separate deferred Phase 35 task.
+
+## Phase 32 — Download and Prepare the LOLA South-Pole DEM
+
+- **Status:** Data-source validation complete; raw DEM download intentionally deferred until disk-space and developer approval checks are satisfied.
+- **Objective Achieved:** Created a dedicated terrain-preparation workflow under `scripts/terrain/prepare_lola_dem.py` and `scripts/terrain/requirements.txt` to validate the selected mission site, inspect the official NASA/PGDA LOLA products, and prepare a future site-crop manifest without committing raw source files.
+- **Verified Source Data:** The official 5 m South-Pole DEM and count map both respond with HTTP 200, `Content-Type: image/tiff`, `Accept-Ranges: bytes`, and the expected file sizes (`~3.22 GB` DEM, `~145 MB` count map). The script confirmed the selected mission point (`89.50° S, 0.00° E`) is within the documented South-Pole product footprint and records the site metadata in a structured inspection report.
+- **Safety Controls Implemented:** The raw dataset remains excluded from Git via the existing `data/lunar-terrain/` ignore rule and the script intentionally performs a no-download inspection mode by default unless a local DEM path is supplied or an explicit download action is chosen. No `public/` or browser asset has been altered by this phase.
+- **Files Added:**
+  - `scripts/terrain/prepare_lola_dem.py`
+  - `scripts/terrain/requirements.txt`
+- **Superseded Follow-up:** The download, full-raster validation, and site-local package preparation deferred in Phase 32 were completed under Phase 34 below. The Phase 32 source-validation and safety work remains part of the workflow history.
+
+## Phase 34 — Complete LOLA DEM Download and Prepare the Local Terrain Package
+
+- **Status:** `COMPLETED` — the official DEM and matching count map were safely downloaded and fully read; the confirmed site crop, browser grid, quality raster, validity mask, preview, and manifest were generated and independently verified. Phase 35 remains not started.
+- **Objective Achieved:** Continued the existing Phase 34 transfer without duplication, corrected the lunar coordinate conversion and terrain preparation safeguards, validated both official source products, and created the local terrain package for the user-confirmed site.
+- **Verified Evidence:**
+  - Python environment: `.venv-terrain` on Python 3.12.10 with `numpy 2.2.1`, `rasterio 1.4.3`, `pyproj 3.7.1`.
+  - Source DEM: official NASA/GSFC PGDA 87S 5 m mosaic, `https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/87S/ldem_87s_5mpp.tif`; final size `3,465,285,714` bytes (matches remote `Content-Length`); local SHA-256 `417a85715406c346e2ecb2fc3abc93d3717121466e3d4950e1a6b977f207b881`; valid BigTIFF signature; Rasterio/GDAL opened the file and read every block plus a 5 × 5 window at the selected site with no truncation/block/decompression error.
+  - DEM metadata: 40,000 × 40,000, one Float32 band, GeoTIFF, 5 m × 5 m, south-polar stereographic lunar WKT (`Moon2000_spole`, radius 1,737,400 m), NaN NoData, scale 1, offset 0, bounds `[-100,000, 100,000] m` in X/Y. The full block scan found 1,287,360,400 valid pixels (80.460025%), 312,639,600 NoData pixels (19.539975%), values `-4,380.5181` to `2,713.0874 m`, mean `-1,067.1031 m`. Site sample window had 25 valid samples, approximately `-723` to `-719 m`.
+  - Matching count map: official NASA/GSFC PGDA 87S product, `https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/87S/ldec_87s_5mpp.tif`; final size `145,895,726` bytes (matches remote `Content-Length`); local SHA-256 `dab531d817b9e7cfddf8ac23ffde9ccfe737efe526e98763ca7ded7a2afcae04`; valid BigTIFF signature; all blocks read successfully. It matches the DEM at 40,000 × 40,000, same lunar CRS, exact transform/bounds, and 5 m spacing. It is UInt8 with no GDAL NoData value, full coverage, and observed source values 0–5; zero values were preserved as valid count support, not replaced with NoData. Remote headers retain ETags and last-modified dates in the prepared manifest.
+  - Both source products were independently confirmed as HTTP 200 `image/tiff`, `Accept-Ranges: bytes`, with DEM `ETag W/"ce8c1052-17c7ede95a8"` / last modified `Thu, 14 Oct 2021 12:54:49 GMT`, and count map `ETag W/"8b2312e-17c7f5b5b10"` / last modified `Thu, 14 Oct 2021 15:11:06 GMT`. The DEM download itself was resumed through the original curl transfer; the completion notification reported that command succeeded. Because no source-identity snapshot was captured before that original transfer began, validator continuity across its entire lifetime is not proven. The final file nevertheless matches the current official length and passed full raster reads.
+  - From the first recorded partial-file snapshot (784,941,056 DEM bytes) to the completed files, the on-disk payload increased by 2,680,344,658 DEM bytes and 145,895,726 count-map bytes, for 2,826,240,384 bytes total. This is a file-size delta, not a measurement of network protocol overhead or retransmitted bytes.
+  - User-confirmed crop site: `89.50° S, 0.00° E`, east-positive longitude. Using the raster’s lunar geographic CRS (not EPSG:4326), site transforms to `(0.0, 15,161.7714) m` and is inside the verified raster footprint. Requested 10 km crop bounds: X `[-5,000, 5,000] m`, Y `[10,161.7714, 20,161.7714] m`; native pixel-aligned crop bounds are recorded separately in the manifest.
+  - Prepared package: `data/lunar-terrain/processed/site_89_50S_00_00E/`
+    - `dem-native-crop.tif` — 2,000 × 2,000 Float32, native 5 m spacing, 16,025,267 bytes.
+    - `heightmap-10m.f32` — 1,000 × 1,000 little-endian Float32, actual 10 m spacing, 4,000,000 bytes; averaged from source 5 m values and not claimed as new 10 m measurements.
+    - `quality-counts-10m.f32` — 1,000 × 1,000 Float32, 4,000,000 bytes; count support is summed onto the output grid, zero values remain valid.
+    - `validity-mask-10m.bin` — 1,000,000 bytes; verified against the heightmap’s finite/NoData state.
+    - `terrain-preview.png` — 40,694 bytes; valid PNG derived from the browser grid.
+    - `terrain-manifest.json` — records site, product/version/URLs, remote validators, source raster metadata, lunar frame/radius, crop and actual grid spacing, quality semantics, valid/NoData counts, output sizes/checksums, source samples, and warnings.
+  - Independent output verification: all five output file lengths and SHA-256 digests match the manifest; height and quality Float32 byte lengths match 1,000 × 1,000 grids; mask matches the heightmap; PNG signature valid; 5/5 native crop source samples match exactly; selected site to nearest heightmap sample is 7.0711 m, equal to the expected half-cell diagonal tolerance.
+  - Focused tests: `.\.venv-terrain\Scripts\python.exe -m pytest scripts\terrain\tests\test_prepare_lola_dem.py -q` → `16 passed` (18 Rasterio deprecation warnings). `npm run typecheck` → pass.
+  - `data/lunar-terrain/` remains Git-ignored. Phase 35 was not started and no Cesium/rendering code was changed.
+- **Files Updated:**
+  - `scripts/terrain/prepare_lola_dem.py` (resume-safe `.part` downloads and source identity/range validation, atomic completion, exact-size gate, explicit site arguments, lunar CRS conversion, full-block raster inspection, source/count alignment, output verification, and provenance-rich manifest)
+  - `scripts/terrain/tests/test_prepare_lola_dem.py` (16 focused cases covering resumable-download safeguards, lunar coordinate conversion/site coverage, source size validation, crop bounds/sample agreement, height/quality/mask outputs, and NoData semantics)
+  - `context/progress-tracker.md` (Phase 34 completion evidence)
+- **Remaining for Phase 34:** None. Preserve the documented source-validator continuity limitation. Phase 35 may consume this package only as a separate approved task after reviewing the manifest warnings.
+
+## Recent Phase
+
+- **Phase 3 Moon Globe Shell (Active / In Progress):** Reuse the existing `/3d-simulation` route, initialize a client-only `Viewer`, configure the Moon ellipsoid, and add the NASA Moon Trek global imagery layer without introducing Earth defaults or a second 3D engine.
+- Objective Achieved: Added a dedicated lunar simulation page with a responsive Moon viewer, mission-site metadata, global Moon view/reset controls, and an active focus-to-site camera interaction. The viewer is configured with `Ellipsoid.MOON`, a restrictive lunar globe state, and a `WebMapTileServiceImageryProvider` pointing at the NASA Moon Trek `LRO_WAC_Mosaic_Global_303ppd_v02` layer.
+- Verification Evidence:
+  - `npm run lint` — Pass
+  - `npm run typecheck` — Pass
+  - `npm run build` — Pass
+  - `tests/simulation-page.test.tsx` — Pass
+- Remaining for Full Phase 3 Completion: real LOLA local terrain asset generation, georeferenced DEM-to-geometry conversion, verified camera focus over the local patch, and final browser-side acceptance checks showing the actual local terrain and source metadata in the viewport.
+
+- **Phase 2 Cesium Dependency Setup (Completed 2026-11-16):** Audit the repository, install the verified stable CesiumJS dependency, copy the browser runtime assets into `public/cesium/`, configure client-only loading with `window.CESIUM_BASE_URL = "/cesium/"`, and verify the route and static asset checks.
+- Objective Achieved: Installed `cesium@1.147.0` via npm, added `scripts/copy-cesium-assets.mjs`, and registered `npm run cesium:copy-assets` without disturbing the existing scripts. Added a reusable client-side `CesiumLoader` and a non-public `/cesium-check` verification page to import `Viewer`, `Ellipsoid`, and `WebMapTileServiceImageryProvider` only in the browser while validating `/cesium/Assets/Textures/moonSmall.jpg` responds with HTTP 200. Imported `cesium/Build/Cesium/Widgets/widgets.css` in the root layout for the required global widget styling.
+- Verification Evidence:
+  - `npm run cesium:copy-assets` — Pass
+  - `npm run typecheck` — Pass
+  - `npm run lint` — Pass
+  - `npm run build` — Pass
+  - `curl.exe -s -o NUL -w "%{http_code}" http://localhost:3000/cesium-check` — 200
+  - `curl.exe -s -o NUL -w "%{http_code}" http://localhost:3000/cesium/Assets/Textures/moonSmall.jpg` — 200
+  - `public/cesium/` contains all four runtime directories: `Assets`, `ThirdParty`, `Widgets`, and `Workers`.
 
 ## Completed
 

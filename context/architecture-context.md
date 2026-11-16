@@ -10,7 +10,7 @@ The source context identifies the following application stack. Verify the instal
 | UI | Tailwind CSS + shadcn/ui | Responsive interface and reusable components |
 | Icons | Lucide React | Consistent line icons |
 | Styling | CSS custom properties + Tailwind theme tokens | Centralized dark theme |
-| Map | To be selected/verified | Lunar imagery, coordinate display, layers, and map interaction |
+| Map / 3D globe | Existing map provider to be verified; CesiumJS planned for the dedicated 3D simulation | Preserve the current 2D lunar map; use CesiumJS for a separate lunar globe/surface scene after dependency setup |
 | Astronomical data | NASA JPL Horizons | Sun/Earth observer and ephemeris information |
 | Lunar terrain data | LROC/QuickMap-related datasets or another verified source | Imagery, elevation, and terrain context |
 | Analysis engine | TypeScript server-side modules or a suitable computation service | Combine ephemeris and terrain data |
@@ -33,7 +33,7 @@ Keep these responsibilities separate:
 - `public/` — static assets, including the supplied lunar hero background if appropriate.
 - `context/` — project specifications and progress documentation.
 
-Adapt names to the repository's existing structure; do not create duplicate layers if equivalent ones already exist.
+Adapt names to the repository's existing structure; do not create duplicate layers if equivalent ones already exist. A separate CesiumJS-based 3D lunar-surface rover simulation is planned; its architecture is specified in the final section and must reuse existing service/type boundaries where appropriate.
 
 ## Main Data Flow
 
@@ -669,3 +669,219 @@ The library list is a recommended architecture map, not proof that these package
 8. Secrets remain server-side.
 9. Conversation history is synchronized across text and voice using stable IDs.
 10. No new parallel voice, RAG, or vector infrastructure is introduced when equivalent project infrastructure already exists.
+
+
+# 3D Lunar-Surface Rover Simulation — Planned Architecture
+
+**Status: planned / not implemented.** This is an additional feature workstream. It must not replace or destabilize the existing mission input, 2D lunar map, mission analysis, results, or SIS features.
+
+## 1. Selected rendering and data direction
+
+| Concern | Planned choice | Boundary |
+|---|---|---|
+| 3D globe and scene | CesiumJS | Browser/client-only rendering |
+| Lunar imagery | NASA Moon Trek WMTS | Verify the exact layer and WMTS metadata before use |
+| Elevation and terrain | LOLA DEM/GDR product | Separate data retrieval and terrain conversion pipeline |
+| Rover model | Existing approved project asset or local `.glb` | Asset provenance/licence must be recorded |
+| Rover playback | TypeScript simulation module | Visual playback first; physical dynamics are separate scope |
+| Hazard analysis | Terrain analysis module using validated DEM samples | No calculation inside Cesium/React presentation components |
+| AI explanation | Existing SIS backend/LiveKit agent | Future context extension; no duplicate agent/RAG stack |
+
+Use CesiumJS as the single 3D engine. Do not add Three.js, React Three Fiber, Drei, or a second globe engine in parallel. The dependency setup phase must inspect the existing package manager and current versions before installing.
+
+## 2. Moon Trek imagery integration
+
+Moon Trek's public Trek map services expose imagery layers through OGC WMTS. The service documentation describes projection/service groupings, including Equirectangular, North Pole, and South Pole. NASA's Moon Trek viewer also exposes a 3D Globe view.
+
+The application should consume verified WMTS imagery in its own Cesium scene. It should not assume that the full Moon Trek website can be embedded as a reliable reusable component, nor should it scrape the website's canvas.
+
+For every WMTS layer, parse/inspect the official GetCapabilities metadata and validate layer ID, style, TileMatrixSet, tile labels, CRS, bounding boxes, tile dimensions, image format, endpoint and coverage. Start with a global/equirectangular layer only if the metadata is compatible with the Cesium tiling scheme being used. Polar projections need explicit handling; do not assign an incompatible tiling scheme.
+
+Moon Trek image tiles are texture. They are not an elevation model.
+
+## 3. Lunar body and coordinate reference
+
+The Cesium scene must use a documented Moon-specific reference ellipsoid/model with authoritative radii and a verified coordinate convention. Do not leave the default WGS84 Earth model and call it the Moon.
+
+Before implementing transformations:
+- Confirm Moon Trek longitude direction and latitude convention.
+- Confirm the LOLA product's coordinate reference system and projection.
+- Confirm the lunar body-fixed frame / reference radius or ellipsoid expected by the products.
+- Record units, vertical reference/datum and any conversion.
+- Test known coordinate locations against Moon Trek's own viewer.
+
+The existing mission input supports latitude and longitude in degrees. Keep that input contract stable, but use an explicit transform adapter to convert coordinates into Cesium scene coordinates and DEM grid coordinates.
+
+Do not hardcode source/destination values in the production UI. Reuse the current validated mission input or simulation setup state.
+
+## 4. LOLA elevation pipeline
+
+Use a selected LOLA product suitable for the source/destination coverage. LOLA GDR documentation describes gridded altimetry products and associated terrain information such as slope and roughness, but the exact product and resolution must be selected and verified for the target region.
+
+Pipeline:
+1. Identify candidate product and inspect its PDS/product documentation.
+2. Confirm spatial coverage, map projection, grid spacing/resolution, units, vertical datum/reference, no-data/fill values, and data format.
+3. Request/download only the required regional subset.
+4. Parse and normalize data in a service/worker module, not inside the visual component.
+5. Construct a local terrain patch/mesh or a verified compatible terrain-tile product.
+6. Drape a matching Moon Trek imagery layer over the patch where georegistration permits.
+7. Preserve source, product/version, grid resolution, no-data handling, conversion parameters and any vertical exaggeration in metadata.
+
+Do not assume a standard Cesium terrain provider exists for the raw LOLA product. If conversion to a Cesium-compatible terrain format is selected later, document and test that pipeline. An imagery-only globe must be labelled as imagery-only until actual elevation geometry is available.
+
+## 5. Simulation system boundaries
+
+Suggested modules (adapt to existing repository conventions; do not duplicate equivalent modules):
+
+- `components/simulation/` — simulation page composition, setup UI, Cesium viewport, rover display, route/hazard overlays, controls, telemetry.
+- `lib/services/moon-trek-wmts-service.ts` — verified WMTS metadata/configuration and imagery request setup.
+- `lib/services/lola-dem-service.ts` — DEM retrieval/subsetting and provenance.
+- `lib/simulation/` — typed simulation state, route geometry, playback, hazard-corridor analysis, path-planning policy.
+- `lib/terrain/` — coordinate transforms, DEM normalization and mesh building.
+- `types/simulation.ts` — shared typed input/state/hazard contracts.
+- `public/cesium/` — copied Cesium runtime assets.
+- `public/models/` — approved rover model if stored locally.
+- `scripts/copy-cesium-assets.mjs` — idempotent runtime asset copy script.
+
+### Component/service ownership
+
+- React components render typed props/state and collect user actions.
+- Cesium components render the Moon, terrain, route, model, and markers; they do not calculate scientific slope or path safety.
+- WMTS/LOLA services retrieve data and retain provenance.
+- Terrain modules transform/normalize DEM data.
+- Simulation modules calculate route progress and supported hazard classifications.
+- SIS consumes serialized, validated results but does not calculate terrain or control the rover.
+
+## 6. Suggested simulation contracts
+
+These interfaces are conceptual, not a claim that the values exist in the repository. Adapt them to the current code and the real General Rover profile.
+
+```ts
+export interface LunarCoordinate {
+  latitudeDegrees: number;
+  longitudeDegrees: number;
+}
+
+export interface RoverSimulationInput {
+  source: LunarCoordinate;
+  destination: LunarCoordinate;
+  roverProfileId: string;
+  analysisRunId?: string;
+}
+
+export type SimulationStatus =
+  | "idle"
+  | "loading-imagery"
+  | "loading-terrain"
+  | "ready"
+  | "running"
+  | "paused"
+  | "hazard-detected"
+  | "blocked"
+  | "completed"
+  | "partial"
+  | "error";
+
+export type HazardKind =
+  | "steep-slope"
+  | "crater-or-depression"
+  | "rough-terrain"
+  | "rock-or-boulder"
+  | "unknown";
+
+export interface TerrainHazardEvent {
+  id: string;
+  kind: HazardKind;
+  classification: "low" | "moderate" | "high" | "unknown";
+  location: LunarCoordinate;
+  distanceAheadMeters?: number;
+  source: string;
+  sourceResolution?: string;
+  method: string;
+  confidence?: number;
+  warning: string;
+}
+
+export interface RoverPlaybackState {
+  status: SimulationStatus;
+  position: LunarCoordinate | null;
+  headingDegrees?: number;
+  distanceTravelledMeters?: number;
+  distanceRemainingMeters?: number;
+  activeHazards: TerrainHazardEvent[];
+  dataWarnings: string[];
+  dataSources: string[];
+  updatedAtUtc: string;
+}
+```
+
+Preserve `null`/unavailable values. Do not create fake speed, battery, distance, physical parameters or confidence scores. Emit a rock/boulder hazard only when a suitable high-resolution source and validated detection method exist.
+
+## 7. Route, movement and hazard-analysis rules
+
+- Initial straight/geodesic path is a candidate traverse only, not a safe route.
+- Route distance must use a documented lunar-body geodesic method and the selected Moon reference model.
+- Reuse the existing General Rover profile. Inspect its actual definition before deriving speed, clearance, wheel size, mass, traction, power, or other constraints.
+- Phase 6 movement may be visual interpolation along the candidate route. Label it visual playback, not full rover dynamics.
+- Full wheel-ground physics, traction/slip, suspension and contact dynamics require a separately scoped physics implementation and verified rover parameters.
+- Hazard analysis must sample a documented forward corridor in the rover's local surface frame.
+- Calculate slope, roughness or crater/depression indicators only from suitable terrain products and documented methods.
+- Keep renderer raycasting/collision separate from scientific DEM hazard detection.
+- No-data or inadequate-resolution areas return unknown/unavailable, not clear/safe.
+- Rerouting requires an explicit cost function, constraints and tested planner. Do not silently detour.
+- Phrase findings as potential hazards/route warnings; do not claim collision avoidance or guaranteed safe travel.
+
+## 8. Simulation lifecycle and state
+
+Recommended states:
+`idle`, `loading-imagery`, `loading-terrain`, `ready`, `running`, `paused`, `hazard-detected`, `blocked`, `completed`, `partial`, `error`.
+
+The scene and telemetry must consume the same canonical simulation state. A state transition can be marked complete only after the corresponding data or calculation has completed. If only visual route playback exists, do not show terrain-analysis progress as complete.
+
+## 9. SIS integration boundary
+
+This is a future phase after the 3D simulation produces typed, verifiable state. Extend the existing SIS mission context contract rather than creating another assistant, API, RAG pipeline, or LiveKit worker.
+
+A future simulation snapshot may include:
+- context/schema version and simulation-run ID;
+- source and destination coordinates and coordinate-reference metadata;
+- rover profile ID and only verified profile parameters;
+- data sources, versions, resolution, freshness, and coverage;
+- current rover position and route progress when calculated;
+- hazard events, classification method, and uncertainty;
+- missing or not-evaluated values.
+
+The existing SIS scope guard, source-grounding, stale-context handling and refusal behavior remain mandatory. SIS may explain simulation results but must not control the rover or override route calculations.
+
+## 10. UI integration boundary
+
+Use the existing LMP dark technical theme and token system. The default recommended layout is a separate simulation route linked from the existing workspace so the current 2D map and Mission Analysis panels stay available.
+
+Desktop:
+- Left Simulation Setup panel.
+- Large center 3D Lunar View.
+- Right Rover Telemetry & Hazard Analysis panel.
+
+Tablet/mobile: stack setup, 3D view, then telemetry. Add accessible Play/Pause/Reset and camera controls, data-layer attribution, source/destination markers, route, rover, hazard markers and clear missing-data states. The full UI contract is in `ui-context.md`; keep this architecture file and the other four main context files as the complete project specification.
+
+## 11. Planned phases
+
+- **Phase 2:** Cesium dependency/runtime setup only.
+- **Phase 3:** verified Moon Trek WMTS imagery on a lunar Cesium globe.
+- **Phase 4:** selected LOLA elevation subset and regional 3D terrain mesh.
+- **Phase 5:** existing General Rover model/profile, source/destination markers and candidate traverse.
+- **Phase 6:** visual rover playback and controls.
+- **Phase 7:** terrain-ahead hazard analysis and only then optional rerouting.
+- **Phase 8:** SIS context integration.
+
+Do not start the next phase until the current phase's acceptance checks and regression checks pass.
+
+## 12. Relevant official references
+
+- NASA Moon Trek: https://trek.nasa.gov/moon/
+- NASA Trek WMTS API: https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=moon
+- NASA Open APIs / Moon Trek WMTS overview: https://api.nasa.gov/
+- LOLA PDS archive: https://pds-geosciences.wustl.edu/missions/lro/lola.htm
+- LOLA GDR data product information: https://ode.rsl.wustl.edu/Venus/pagehelp/Content/Missions_Instruments/Lunar%20Reconnaissance%20Orbiter%20%28LRO%29/LOLA/GDR/Intro.htm
+- CesiumJS: https://cesium.com/learn/cesiumjs-learn/cesiumjs-quickstart/
+- CesiumJS WMTS imagery provider: https://cesium.com/learn/cesiumjs/ref-doc/WebMapTileServiceImageryProvider.html
