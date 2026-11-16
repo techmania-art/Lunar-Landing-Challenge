@@ -60,6 +60,7 @@ Never change a status to `VERIFIED FIXED` without test evidence.
 | `SIM-004` | Phase 3 | Moon Trek imagery not visibly draping the lunar globe because the provider config and active layer attachment were not fully synchronized with the verified service metadata | `READY FOR TEST` | Critical |
 | `TERR-LOOP-035` | Phase 35 | LOLA Terrain Effect Loop, Maximum Update Depth Exceeded, and WebGL Shader Compilation Error | `VERIFIED FIXED` | Critical |
 | `TERR-DISC-036` | Phase 35 | LOLA Terrain Package Discovery, Working Directory Resolution, Site Key Formatting & Manifest Validation | `VERIFIED FIXED` | Critical |
+| `TERR-SITE-037` | Phase 35 | LOLA Site-Package Mismatch & Local Terrain Loading Resolution | `VERIFIED FIXED` | High |
 
 **Important:** These statuses describe the evidence available in the project conversation and screenshots. They are not claims about the current state of the user's local codebase. The actual repository must be inspected and tests must be run before confirming implementation status.
 
@@ -1024,7 +1025,58 @@ The SIS panel displayed a user message (e.g., *"What does this mean for the rove
 
 ---
 
-## 17. Overall debug acceptance checklist
+## 17. Issue TERR-SITE-037 — LOLA Site-Package Mismatch & Local Terrain Loading Resolution
+
+### Affected phases
+- **Phase 35:** Render Local 3D Lunar Terrain from Processed LOLA DEM (`app/api/terrain/package/route.ts`, `lib/services/terrain/terrain-package-types.ts`, `lib/services/terrain/terrain-package-loader.ts`, `components/simulation/lunar-simulation-page.tsx`).
+
+### Observed requirement / defect
+- When selecting mission coordinates such as `-9.00° S, 10.00° E` in workspace / mission input and navigating to `/3d-simulation`:
+  - Next.js server logged `GET /api/terrain/package?type=manifest&site=site_09_00S_10_00E 404`.
+  - The UI caught the 404 and rendered a generic error: `LOLA Terrain Loading Error: Prepared terrain package unavailable for site 'site_09_00S_10_00E'`.
+  - The user had no clear notice that `-9.00° S, 10.00° E` is outside the NASA South Pole LOLA 87S DEM coverage region, nor an easy way to switch to the verified Phase 34 South Pole test site (`-89.50° S, 0.00° E`).
+
+### Investigation & confirmed root cause
+1. **Regional Footprint Mismatch:**
+   Phase 34 LOLA DEM preparation is derived from `ldem_87s_5mpp.tif`, which strictly spans 87° S to 90° S polar latitudes. Equatorial and mid-latitude sites (e.g. `-9.00° S, 10.00° E`) fall outside this DEM dataset.
+2. **Missing Structured API Status Categorization:**
+   The API route returned a plain 404 without distinguishing between `OUTSIDE_DATA_COVERAGE` (locations outside 87°S–90°S), `PACKAGE_NOT_PREPARED` (south-polar coordinates without a prepared 10 km crop), and `PACKAGE_AVAILABLE`.
+3. **Generic UI Error Display:**
+   The frontend caught 404 errors as generic `error` state rather than providing an honest notice:
+   *"Local terrain not prepared for this site. The current mission location is 9.00° S, 10.00° E. The available prepared LOLA package is for a different region (89.50° S, 0.00° E)."*
+   and an action button to switch to the prepared test site.
+
+### Code corrections implemented
+1. **API Structured Status Codes (`app/api/terrain/package/route.ts`):**
+   - Implemented latitude parsing from `siteKey` (`site_(\d{2})_(\d{2})([NS])_`).
+   - If `lat > -87.0°`, returns HTTP 404 with `code: "OUTSIDE_DATA_COVERAGE"`.
+   - If `lat <= -87.0°` but uncropped, returns HTTP 404 with `code: "PACKAGE_NOT_PREPARED"`.
+   - If package is valid and heightmap is verified, tags manifest with `status: "PACKAGE_AVAILABLE"`.
+2. **Dedicated UI Notice & Test Site Switcher (`components/simulation/lunar-simulation-page.tsx`):**
+   - Added `"package-not-prepared"` state to `TerrainStatusState`.
+   - Rendered an honest informational panel when `terrainStatus.code === "package-not-prepared"`:
+     - Title: **Local terrain not prepared for this site**
+     - Message & Detail explaining current site vs available South Pole package.
+     - Action Button: **Use Prepared Test Site (-89.50° S, 0.00° E)** which updates `selectedSite`, camera focus, and `sessionStorage`.
+3. **Global Moon Preservation:**
+   - Invariant verified: Cesium globe with NASA Moon Trek imagery remains mounted, visible, and fully interactive in both prepared and unprepared site states.
+
+### Test procedures & evidence
+1. **Unit & API Contract Tests (`tests/terrain-package.test.ts`):**
+   - Verified `computeSiteKey(-9.0, 10.0)` produces `site_09_00S_10_00E`.
+   - Verified `GET /api/terrain/package?type=manifest&site=site_09_00S_10_00E` returns HTTP 404 with `code: "OUTSIDE_DATA_COVERAGE"` and `availableTestSite: "site_89_50S_00_00E"`.
+   - Verified `GET /api/terrain/package?type=manifest&site=site_88_00S_00_00E` returns HTTP 404 with `code: "PACKAGE_NOT_PREPARED"`.
+   - Verified `GET /api/terrain/package?type=manifest&site=site_89_50S_00_00E` returns HTTP 200 with `status: "PACKAGE_AVAILABLE"`.
+   - 17/17 tests passing (100%).
+2. **Automated E2E Visual Verification (`scripts/verify_site_mismatch_e2e.js`):**
+   - **Case B (Unprepared Site `-9.0°, 10.0°`):** Notice displayed cleanly (`phase-35-case-b-unprepared-site.png`). Clicked "Use Prepared Test Site", synchronized coordinates to `-89.50°, 0.00°`, and successfully loaded South Pole terrain (`phase-35-case-b-switched-to-prepared.png`).
+   - **Case A (Prepared Site `-89.5°, 0.0°`):** Switched to Local 3D Terrain mode with physical elevation relief rendered (`phase-35-case-a-prepared-site.png`). Switched back to Global Moon with textured Moon globe fully functional (`phase-35-case-a-global-moon-restored.png`).
+
+- **Current Status:** `VERIFIED FIXED`
+
+---
+
+## 18. Overall debug acceptance checklist
 
 - [x] Actual repository inspected.
 - [x] Current LROC endpoint identified (`https://wms.im-ldi.com/` via `/api/lunar-map`).
@@ -1056,8 +1108,9 @@ The SIS panel displayed a user message (e.g., *"What does this mean for the rove
 - [x] Phase 26 LiveKit SIS Chat no agent reply debug, truthful badge states, and real Gemini round-trip verified (SIS-CHAT-027).
 - [x] Phase 35 LOLA terrain effect loop, Cesium WebGL shader compile error, and 3D terrain restoration verified (TERR-LOOP-035).
 - [x] Phase 35 LOLA terrain package discovery, multi-root path resolution, site key formatting & manifest validation verified (TERR-DISC-036).
+- [x] Phase 35 LOLA site-package mismatch, structured coverage error codes & test site switcher verified (TERR-SITE-037).
 
-## 18. Overall status
+## 19. Overall status
 
 <badge color="success">VERIFIED FIXED — LROC MAP, JPL HORIZONS & SIS LIVEKIT REAL-TIME AGENT VERIFIED</badge>
 

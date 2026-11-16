@@ -33,6 +33,7 @@ import {
 import {
   fetchTerrainManifest,
   loadPreparedTerrainGrid,
+  TerrainLoadError,
 } from "@/lib/services/terrain/terrain-package-loader";
 import {
   buildTerrainMeshData,
@@ -828,26 +829,58 @@ function MoonViewer({
       } catch (err) {
         if (cancelled || signal.aborted) return;
         const msg = err instanceof Error ? err.message : "Error loading LOLA terrain";
-        onTerrainStatusChangeRef.current({
-          code: "error",
-          message: "LOLA Terrain Unavailable",
-          detail: msg,
-        });
-        onDiagnosticsChangeRef.current((current) => ({
-          ...current,
-          lolaTerrain: {
-            state: "failed",
-            label: "LOLA Terrain",
+        const code = err instanceof TerrainLoadError ? err.code : "LOAD_ERROR";
+
+        if (
+          code === "OUTSIDE_DATA_COVERAGE" ||
+          code === "PACKAGE_NOT_PREPARED" ||
+          code === "PACKAGE_NOT_FOUND" ||
+          code === "SITE_UNAVAILABLE"
+        ) {
+          const latFormatted = formatCoordinate(targetLat, "lat");
+          const lonFormatted = formatCoordinate(targetLon, "lon");
+          onTerrainStatusChangeRef.current({
+            code: "package-not-prepared",
+            message: "Local terrain not prepared for this site",
+            detail: `The current mission location is ${latFormatted}, ${lonFormatted}. The available prepared LOLA package is for a different region (89.50° S, 0.00° E). Select the prepared test site or prepare a terrain crop for this location.`,
+          });
+          onDiagnosticsChangeRef.current((current) => ({
+            ...current,
+            lolaTerrain: {
+              state: "partial",
+              label: "LOLA Terrain",
+              detail: `No prepared terrain package for ${latFormatted}, ${lonFormatted}.`,
+              checkedAt: new Date().toISOString(),
+            },
+            pipelineStatus: {
+              state: "partial",
+              label: "Terrain Pipeline Status",
+              detail: `Terrain package not prepared for site ${siteKey}.`,
+              checkedAt: new Date().toISOString(),
+            },
+          }));
+        } else {
+          onTerrainStatusChangeRef.current({
+            code: "error",
+            message: "LOLA Terrain Unavailable",
             detail: msg,
-            checkedAt: new Date().toISOString(),
-          },
-          pipelineStatus: {
-            state: "failed",
-            label: "Terrain Pipeline Status",
-            detail: msg,
-            checkedAt: new Date().toISOString(),
-          },
-        }));
+          });
+          onDiagnosticsChangeRef.current((current) => ({
+            ...current,
+            lolaTerrain: {
+              state: "failed",
+              label: "LOLA Terrain",
+              detail: msg,
+              checkedAt: new Date().toISOString(),
+            },
+            pipelineStatus: {
+              state: "failed",
+              label: "Terrain Pipeline Status",
+              detail: msg,
+              checkedAt: new Date().toISOString(),
+            },
+          }));
+        }
       } finally {
         inFlightRequestRef.current = null;
       }
@@ -1023,6 +1056,16 @@ export function LunarSimulationPage() {
 
   const handleResetToPreparedSite = () => {
     setSelectedSite(DEFAULT_COORDINATES);
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(
+          "lunar_mission_active_state",
+          JSON.stringify({ mapCoords: DEFAULT_COORDINATES })
+        );
+      } catch {
+        // Ignore storage write errors
+      }
+    }
   };
 
   return (
@@ -1225,22 +1268,33 @@ export function LunarSimulationPage() {
                 </div>
               )}
 
-              {/* Out of Coverage Notice */}
-              {terrainStatus.code === "out-of-coverage" && (
+              {/* Package Not Prepared or Out of Coverage Notice */}
+              {(terrainStatus.code === "package-not-prepared" ||
+                terrainStatus.code === "out-of-coverage") && (
                 <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-3 text-xs text-amber-200">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
                     <div>
-                      <p className="font-semibold text-amber-300">Prepared Terrain Unavailable</p>
+                      <p className="font-semibold text-amber-300">
+                        {terrainStatus.code === "package-not-prepared"
+                          ? "Local terrain not prepared for this site"
+                          : "Outside Prepared Data Coverage"}
+                      </p>
                       <p className="mt-1 text-[11px] text-amber-200/90 leading-tight">
                         {terrainStatus.message}
                       </p>
+                      {terrainStatus.detail && (
+                        <p className="mt-1.5 text-[10px] text-amber-300/80 leading-normal">
+                          {terrainStatus.detail}
+                        </p>
+                      )}
                       <button
                         type="button"
                         onClick={handleResetToPreparedSite}
-                        className="mt-2 inline-flex items-center rounded bg-amber-500/20 px-2 py-1 text-[10px] font-bold text-amber-300 ring-1 ring-amber-500/40 hover:bg-amber-500/30"
+                        className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-2.5 py-1.5 text-[11px] font-bold text-amber-300 ring-1 ring-amber-500/40 transition-colors hover:bg-amber-500/30"
                       >
-                        Switch to Prepared South Pole Site (-89.50° S, 0.00° E)
+                        <Globe2 className="h-3 w-3" />
+                        Use Prepared Test Site (-89.50° S, 0.00° E)
                       </button>
                     </div>
                   </div>

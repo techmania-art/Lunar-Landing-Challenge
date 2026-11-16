@@ -4,21 +4,20 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- **Phase 35 Completed (2026-11-16):** Render Prepared LOLA Data as Local 3D Lunar Terrain (`phase-35-render-local-3d-lunar-terrain.md`), Loop Debug Fix (`step-fix-lola-terrain-effect-loop-and-restore-3d-viewer.md`), and Package Discovery Fix (`step-fix-lola-terrain-package-discovery.md`).
-- Objective Achieved: Successfully integrated and rendered the verified Phase 34 LOLA 10 m terrain package (`data/lunar-terrain/processed/site_89_50S_00_00E/terrain-manifest.json`) as real, non-flat 3D elevation geometry in the Cesium lunar simulation (`/3d-simulation`), preserving the NASA Moon Trek global imagery globe, adding seamless mode transitions (Global Moon ↔ Local 3D Terrain), camera presets (Top Nadir, Oblique, Ground), vertical exaggeration controls (1.0× default with explicit "VISUALIZATION ONLY" banner for >1.0×), truthful diagnostic status reporting, and capturing 5 verification screenshots. Resolved `TERR-LOOP-035` (`Maximum update depth exceeded`, continuous manifest requests, and Cesium WebGL shader `roughness` compile failure) and `TERR-DISC-036` (multi-candidate package directory discovery, canonical `computeSiteKey` formatting, forward-slash path sanitization, HTTP 206 byte-range streaming, and schema validation).
+- **Phase 35 Completed (2026-11-16):** Render Prepared LOLA Data as Local 3D Lunar Terrain (`phase-35-render-local-3d-lunar-terrain.md`), Loop Debug Fix (`step-fix-lola-terrain-effect-loop-and-restore-3d-viewer.md`), Package Discovery Fix (`step-fix-lola-terrain-package-discovery.md`), and Site Package Mismatch & Local Terrain Loading Fix (`step-fix-lola-site-package-mismatch-and-terrain-loading.md`).
+- Objective Achieved: Successfully integrated and rendered the verified Phase 34 LOLA 10 m terrain package (`data/lunar-terrain/processed/site_89_50S_00_00E/terrain-manifest.json`) as real, non-flat 3D elevation geometry in the Cesium lunar simulation (`/3d-simulation`), preserving the NASA Moon Trek global imagery globe, adding seamless mode transitions (Global Moon ↔ Local 3D Terrain), camera presets (Top Nadir, Oblique, Ground), vertical exaggeration controls (1.0× default with explicit "VISUALIZATION ONLY" banner for >1.0×), truthful diagnostic status reporting, and capturing visual verification screenshots. Resolved `TERR-LOOP-035` (re-render loop, request guards), `TERR-DISC-036` (multi-root package resolution, site key formatting, byte-range streaming), and `TERR-SITE-037` (site mismatch handling, structured error codes `OUTSIDE_DATA_COVERAGE` / `PACKAGE_NOT_PREPARED`, honest UI notice, and "Use Prepared Test Site" switcher).
 - Deliverables:
-  - Typed Contracts: `lib/services/terrain/terrain-package-types.ts` (manifest schema, polar stereographic projections, bounding box verification, `computeSiteKey`)
-  - Data Serving API: `app/api/terrain/package/route.ts` (manifest, binary heightmaps, HTTP 206 byte-range support, quality counts, preview with multi-root discovery, path traversal protection, forward-slash sanitization, and cache headers)
+  - Typed Contracts: `lib/services/terrain/terrain-package-types.ts` (manifest schema, polar stereographic projections, bounding box verification, `computeSiteKey`, `package-not-prepared` status state)
+  - Data Serving API: `app/api/terrain/package/route.ts` (manifest, binary heightmaps, HTTP 206 byte-range support, quality counts, preview with multi-root discovery, path traversal protection, forward-slash sanitization, structured error codes `OUTSIDE_DATA_COVERAGE` / `PACKAGE_NOT_PREPARED` / `PACKAGE_AVAILABLE`, and cache headers)
   - Binary Loader: `lib/services/terrain/terrain-package-loader.ts` (Float32 binary grid decoder with scale/offset, NaN masking, structured error code parsing, and strict schema validation)
   - 3D Mesh Generator: `lib/services/terrain/terrain-mesh-builder.ts` (Moon-centred Cartesian projection $R = 1,737,400\text{ m}$, central-difference normal calculations, WebGL chunking, GLSL elevation ramp and regolith hillshade Cesium materials with `shininess = 1.0`)
-  - UI & Controls: `components/simulation/lunar-simulation-page.tsx` (view mode switching, Top/Oblique/Ground camera animations, 1.0×–2.0× exaggeration slider with warning tag, retry UI banner, truthful runtime diagnostics)
+  - UI & Controls: `components/simulation/lunar-simulation-page.tsx` (view mode switching, Top/Oblique/Ground camera animations, 1.0×–2.0× exaggeration slider with warning tag, retry UI banner, honest "Local terrain not prepared for this site" panel with "Use Prepared Test Site" button, truthful runtime diagnostics)
   - Verified Screenshots Captured:
-    - `phase-35-1-global-moon.png` (Global Moon mode with site pin)
-    - `phase-35-2-local-terrain-top.png` (Local 3D Terrain Top Nadir view)
-    - `phase-35-3-local-terrain-oblique.png` (Local 3D Terrain Oblique view showcasing crater elevation relief)
-    - `phase-35-4-local-terrain-ground.png` (Ground-level surface horizon view)
-    - `phase-35-5-out-of-coverage.png` (Truthful out-of-coverage notice for coordinates outside the 10 km South Pole crop)
-  - Test Suite: 15 unit tests in `tests/terrain-package.test.ts` and 6 unit tests in `tests/simulation-page.test.tsx` passing (154 Vitest tests passing across 17 files); 16 Python pytest tests passing (100%); 0 TypeScript errors; 0 ESLint errors; production build (`next build`) 100% successful across all 16 routes.
+    - `phase-35-case-a-prepared-site.png` (Local 3D Terrain Mesh rendered from verified LOLA elevation samples at South Pole site)
+    - `phase-35-case-a-global-moon-restored.png` (Global Moon mode restored with NASA Moon Trek global imagery)
+    - `phase-35-case-b-unprepared-site.png` (Unprepared equatorial site `-9.0°, 10.0°` displaying honest notice and test site switcher button)
+    - `phase-35-case-b-switched-to-prepared.png` (After clicking "Use Prepared Test Site", synchronized coordinates to `-89.50°, 0.00°` and loaded terrain)
+  - Test Suite: 17 unit tests in `tests/terrain-package.test.ts` and 6 unit tests in `tests/simulation-page.test.tsx` passing (156 Vitest tests passing across 17 files); 16 Python pytest tests passing (100%); 0 TypeScript errors; 0 ESLint errors; production build (`next build`) 100% successful across all 16 routes.
 
 ## Previous Phase
 

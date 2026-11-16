@@ -169,6 +169,7 @@ export interface TerrainStatusState {
     | "generating-mesh"
     | "ready"
     | "out-of-coverage"
+    | "package-not-prepared"
     | "error";
   message: string;
   detail?: string;

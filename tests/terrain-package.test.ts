@@ -223,6 +223,10 @@ describe("Phase 35: Prepared LOLA Terrain Package and Mesh Builder Unit Tests", 
       expect(computeSiteKey(-89.5, 0.0)).toBe("site_89_50S_00_00E");
     });
 
+    it("maps -9.0, 10.0 to site_09_00S_10_00E", () => {
+      expect(computeSiteKey(-9.0, 10.0)).toBe("site_09_00S_10_00E");
+    });
+
     it("produces identical keys for equivalent floating-point representations", () => {
       expect(computeSiteKey(-89.500000, 0.000000)).toBe("site_89_50S_00_00E");
       expect(computeSiteKey(-89.501, 0.001)).toBe("site_89_50S_00_00E");
@@ -243,7 +247,7 @@ describe("Phase 35: Prepared LOLA Terrain Package and Mesh Builder Unit Tests", 
       expect(fs.existsSync(path.join(resolved, "terrain-manifest.json"))).toBe(true);
     });
 
-    it("serves valid JSON manifest with sanitized forward-slash paths and cache headers", async () => {
+    it("serves valid JSON manifest with sanitized forward-slash paths and PACKAGE_AVAILABLE status", async () => {
       const req = new NextRequest("http://localhost:3000/api/terrain/package?type=manifest&site=site_89_50S_00_00E");
       const res = await GET(req);
 
@@ -253,20 +257,32 @@ describe("Phase 35: Prepared LOLA Terrain Package and Mesh Builder Unit Tests", 
       const data = await res.json();
       expect(data.schemaVersion).toBe(1);
       expect(data.site.siteKey).toBe("site_89_50S_00_00E");
+      expect(data.status).toBe("PACKAGE_AVAILABLE");
       // Verify backslashes are sanitized
       expect(data.browserGrid.path).not.toContain("\\");
       expect(data.browserGrid.path).toContain("/");
     });
 
-    it("returns HTTP 404 with PACKAGE_NOT_FOUND for non-existent sites", async () => {
-      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=manifest&site=site_00_00N_00_00E");
+    it("returns HTTP 404 with OUTSIDE_DATA_COVERAGE for equatorial site_09_00S_10_00E", async () => {
+      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=manifest&site=site_09_00S_10_00E");
       const res = await GET(req);
 
       expect(res.status).toBe(404);
       const data = await res.json();
-      expect(data.code).toBe("PACKAGE_NOT_FOUND");
-      expect(data.siteKey).toBe("site_00_00N_00_00E");
+      expect(data.code).toBe("OUTSIDE_DATA_COVERAGE");
+      expect(data.siteKey).toBe("site_09_00S_10_00E");
+      expect(data.availableTestSite).toBe("site_89_50S_00_00E");
       expect(res.headers.get("Cache-Control")).toContain("no-store");
+    });
+
+    it("returns HTTP 404 with PACKAGE_NOT_PREPARED for polar coordinates lacking a processed crop", async () => {
+      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=manifest&site=site_88_00S_00_00E");
+      const res = await GET(req);
+
+      expect(res.status).toBe(404);
+      const data = await res.json();
+      expect(data.code).toBe("PACKAGE_NOT_PREPARED");
+      expect(data.siteKey).toBe("site_88_00S_00_00E");
     });
 
     it("returns HTTP 400 with INVALID_SITE_KEY for malformed site identifiers", async () => {

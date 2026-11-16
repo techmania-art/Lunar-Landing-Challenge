@@ -92,16 +92,43 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Parse site latitude from siteKey if available (e.g. site_09_00S_10_00E -> lat = -9.0)
+  let parsedLat: number | null = null;
+  const siteMatch = site.match(/^site_(\d{2})_(\d{2})([NS])_/);
+  if (siteMatch) {
+    const deg = parseInt(siteMatch[1], 10) + parseInt(siteMatch[2], 10) / 100;
+    parsedLat = siteMatch[3] === "S" ? -deg : deg;
+  }
+
   // Check file existence
   if (!fs.existsSync(resolvedTarget)) {
+    const isManifest = type === "manifest";
+    let failureCode = "PACKAGE_NOT_FOUND";
+    let explanation = `Terrain package or asset '${fileConfig.filename}' not found for site '${site}'`;
+
+    if (parsedLat !== null && parsedLat > -87.0) {
+      failureCode = "OUTSIDE_DATA_COVERAGE";
+      explanation = `Site '${site}' (${parsedLat.toFixed(2)}°) is outside the verified NASA South Pole LOLA 87S DEM coverage region (87° S to 90° S).`;
+    } else if (isManifest && !fs.existsSync(processedDir)) {
+      failureCode = "PACKAGE_NOT_PREPARED";
+      explanation = `Local terrain crop has not been prepared for site '${site}'. The verified Phase 34 package is available for site_89_50S_00_00E (-89.50° S, 0.00° E).`;
+    } else if (isManifest) {
+      failureCode = "MANIFEST_NOT_FOUND";
+      explanation = `Package directory exists for '${site}', but terrain-manifest.json was not found.`;
+    } else {
+      failureCode = "ASSET_NOT_FOUND";
+      explanation = `Manifest exists, but referenced asset '${fileConfig.filename}' was not found on disk.`;
+    }
+
     return NextResponse.json(
       {
-        code: "PACKAGE_NOT_FOUND",
-        error: `Prepared terrain package unavailable for site '${site}'`,
-        message: `Terrain package or asset '${fileConfig.filename}' not found for site '${site}'`,
+        code: failureCode,
+        error: explanation,
+        message: explanation,
         siteKey: site,
         requestedType: type,
         missingFiles: [fileConfig.filename],
+        availableTestSite: "site_89_50S_00_00E",
       },
       { status: 404, headers: { "Cache-Control": "no-store, max-age=0" } }
     );
@@ -120,7 +147,7 @@ export async function GET(req: NextRequest) {
       } catch (err) {
         return NextResponse.json(
           {
-            code: "INVALID_MANIFEST",
+            code: "MANIFEST_INVALID",
             error: "Failed to parse terrain manifest JSON",
             message: err instanceof Error ? err.message : String(err),
             siteKey: site,
@@ -133,7 +160,7 @@ export async function GET(req: NextRequest) {
       if (jsonContent.schemaVersion !== 1) {
         return NextResponse.json(
           {
-            code: "INVALID_MANIFEST",
+            code: "MANIFEST_INVALID",
             error: `Unsupported manifest schema version: ${jsonContent.schemaVersion}`,
             siteKey: site,
           },
@@ -160,7 +187,7 @@ export async function GET(req: NextRequest) {
       if (!fs.existsSync(heightmapFile)) {
         return NextResponse.json(
           {
-            code: "INVALID_MANIFEST",
+            code: "ASSET_NOT_FOUND",
             error: "Manifest references heightmap-10m.f32, but it is missing on disk",
             siteKey: site,
             missingFiles: ["heightmap-10m.f32"],
@@ -176,7 +203,7 @@ export async function GET(req: NextRequest) {
         if (actualBytes !== expectedBytes) {
           return NextResponse.json(
             {
-              code: "INVALID_MANIFEST",
+              code: "ASSET_INVALID",
               error: `Heightmap byte size mismatch: expected ${expectedBytes} bytes, got ${actualBytes} bytes`,
               siteKey: site,
             },
@@ -184,6 +211,10 @@ export async function GET(req: NextRequest) {
           );
         }
       }
+
+      // Tag manifest with verified status
+      jsonContent.status = "PACKAGE_AVAILABLE";
+      jsonContent.packageStatus = "PACKAGE_AVAILABLE";
 
       // Sanitize Windows backslashes in all string path values to forward slashes
       const sanitizePaths = (obj: unknown): unknown => {
