@@ -59,6 +59,7 @@ Never change a status to `VERIFIED FIXED` without test evidence.
 | `SIM-003` | Phase 3 | Phase 3 Moon globe verification stack, WMTS health checks, and mission-site synchronization diagnostics | `READY FOR TEST` | Critical |
 | `SIM-004` | Phase 3 | Moon Trek imagery not visibly draping the lunar globe because the provider config and active layer attachment were not fully synchronized with the verified service metadata | `READY FOR TEST` | Critical |
 | `TERR-LOOP-035` | Phase 35 | LOLA Terrain Effect Loop, Maximum Update Depth Exceeded, and WebGL Shader Compilation Error | `VERIFIED FIXED` | Critical |
+| `TERR-DISC-036` | Phase 35 | LOLA Terrain Package Discovery, Working Directory Resolution, Site Key Formatting & Manifest Validation | `VERIFIED FIXED` | Critical |
 
 **Important:** These statuses describe the evidence available in the project conversation and screenshots. They are not claims about the current state of the user's local codebase. The actual repository must be inspected and tests must be run before confirming implementation status.
 
@@ -960,7 +961,70 @@ The SIS panel displayed a user message (e.g., *"What does this mean for the rove
 
 ---
 
-## 16. Overall debug acceptance checklist
+## 16. Issue TERR-DISC-036 — LOLA Terrain Package Discovery, Working Directory Resolution, Site Key Formatting & Manifest Validation
+
+### Affected phases
+- **Phase 35:** Render Local 3D Lunar Terrain from Processed LOLA DEM (`app/api/terrain/package/route.ts`, `lib/services/terrain/terrain-package-loader.ts`, `lib/services/terrain/terrain-package-types.ts`, `components/simulation/lunar-simulation-page.tsx`).
+
+### Observed requirement / defect
+- The 3D Simulation page displayed:
+  > LOLA Terrain Loading Error  
+  > LOLA Terrain Unavailable  
+  > Prepared terrain package unavailable for site `site_89_50S_00_00E`
+- Although Phase 34 DEM data was successfully downloaded, cropped, and verified on disk at `data/lunar-terrain/processed/site_89_50S_00_00E/`, the API route `/api/terrain/package?type=manifest&site=site_89_50S_00_00E` returned HTTP 404 because path resolution relied purely on `process.cwd()` without fallback when started from the repository root workspace.
+- The manifest output contained unescaped Windows backslash file paths (`data\lunar-terrain\...`).
+- The API route lacked strict schema validation, site identity mismatch checks (HTTP 409), corrupted manifest checks (HTTP 422), path-traversal containment verification, and HTTP 206 Partial Content byte-range streaming for binary heightmap assets.
+
+### Investigation & confirmed root cause
+1. **Working Directory Mismatch:**
+   `app/api/terrain/package/route.ts` used `path.resolve(process.cwd(), "data", "lunar-terrain", "processed", site)`. When the application is launched or executed from the parent workspace root (`C:\Users\hp\OneDrive\Desktop\Lunar Landing`), `process.cwd()` pointed to the parent folder where `data/lunar-terrain` did not exist, triggering an immediate 404 `PACKAGE_NOT_FOUND`.
+2. **Missing Canonical Site Key Formatting:**
+   The frontend previously used hardcoded `"site_89_50S_00_00E"` or coordinate string keys (`${lat},${lon}`) without standard Python-aligned `site_key(lat, lon)` formatting.
+3. **Missing HTTP 206 Byte-Range Streaming:**
+   Large binary assets (4 MB Float32 heightmap and quality maps) were read fully into memory on every request without `Accept-Ranges: bytes` or range slicing.
+
+### Code corrections implemented
+1. **Multi-Candidate Package Directory Resolution (`resolvePackageDir`):**
+   Implemented robust candidate directory resolution in `app/api/terrain/package/route.ts` checking:
+   - `process.env.LOLA_PROCESSED_DATA_DIR`
+   - `path.resolve(process.cwd(), "data", "lunar-terrain", "processed", site)`
+   - `path.resolve(process.cwd(), "lunar-mission-planner", "data", "lunar-terrain", "processed", site)`
+   - Parent directory fallbacks (`../data/...`, `../lunar-mission-planner/...`).
+2. **Canonical Site Key Function (`computeSiteKey`):**
+   Exported `computeSiteKey(latitude, longitude)` in `lib/services/terrain/terrain-package-types.ts` strictly matching Phase 34 Python format:
+   `f"site_{abs(lat):05.2f}{lat_dir}_{abs(lon):05.2f}{lon_dir}".replace(".", "_").replace("-", "")`.
+   Wired `computeSiteKey` dynamically into `lunar-simulation-page.tsx`.
+3. **Structured API Error Contracts & Status Codes:**
+   - HTTP 400 `INVALID_SITE_KEY`: malformed site key, path traversal attempts, or strings $> 64$ characters.
+   - HTTP 400 `INVALID_REQUEST_TYPE`: unknown asset type requested.
+   - HTTP 404 `PACKAGE_NOT_FOUND`: site package or requested file missing on disk with `Cache-Control: no-store`.
+   - HTTP 409 `SITE_MISMATCH`: manifest `site.siteKey` does not match the requested site.
+   - HTTP 422 `INVALID_MANIFEST`: invalid JSON, schema version $\ne 1$, or referenced `heightmap-10m.f32` missing or byte size mismatch ($width \times height \times 4$).
+4. **Path Normalization & Path-Traversal Containment:**
+   - Sanitized all Windows backslashes `\\` into web-standard forward slashes `/`.
+   - Verified `path.resolve(targetFile).startsWith(path.resolve(processedDir))` to prevent path traversal escapes.
+5. **HTTP 206 Partial Content Byte-Range Support:**
+   Implemented bounded chunk reading for binary heightmaps with `Content-Range: bytes ${start}-${end}/${fileSize}`, `Accept-Ranges: bytes`, and `Cache-Control: public, max-age=31536000, immutable`.
+6. **Robust Error Parsing in Frontend Loader:**
+   Updated `fetchTerrainManifest` in `lib/services/terrain/terrain-package-loader.ts` to parse JSON error bodies and retain exact error codes (`PACKAGE_NOT_FOUND`, `SITE_MISMATCH`, `INVALID_MANIFEST`).
+
+### Test procedures & evidence
+1. **Unit & API Contract Tests (`tests/terrain-package.test.ts`):**
+   - Added 9 new unit tests verifying `computeSiteKey` equivalence, multi-directory resolution, manifest forward-slash sanitization, 404 `PACKAGE_NOT_FOUND`, 400 `INVALID_SITE_KEY`, 400 `INVALID_REQUEST_TYPE`, and 206 `Content-Range` byte-range streaming.
+   - 15/15 tests passed (100%).
+2. **Static Analysis & Production Build:**
+   - `npm run lint` -> 0 errors, 0 warnings.
+   - `npm run typecheck` -> 0 errors.
+   - `npm run build` -> production build succeeded across all 16 routes.
+3. **Visual Verification (`scripts/verify_phase35_terrain_e2e.js`):**
+   - Verified that `/3d-simulation` discovers and renders the local 3D terrain for `site_89_50S_00_00E` with 0 browser errors and 0 infinite request loops.
+   - Captured all 5 verification screenshots cleanly.
+
+- **Current Status:** `VERIFIED FIXED`
+
+---
+
+## 17. Overall debug acceptance checklist
 
 - [x] Actual repository inspected.
 - [x] Current LROC endpoint identified (`https://wms.im-ldi.com/` via `/api/lunar-map`).
@@ -991,8 +1055,9 @@ The SIS panel displayed a user message (e.g., *"What does this mean for the rove
 - [x] Phase 26 LiveKit SIS UI adaptation, dummy data removal, and real agent round-trip verified (SIS-LIVEKIT-026).
 - [x] Phase 26 LiveKit SIS Chat no agent reply debug, truthful badge states, and real Gemini round-trip verified (SIS-CHAT-027).
 - [x] Phase 35 LOLA terrain effect loop, Cesium WebGL shader compile error, and 3D terrain restoration verified (TERR-LOOP-035).
+- [x] Phase 35 LOLA terrain package discovery, multi-root path resolution, site key formatting & manifest validation verified (TERR-DISC-036).
 
-## 17. Overall status
+## 18. Overall status
 
 <badge color="success">VERIFIED FIXED — LROC MAP, JPL HORIZONS & SIS LIVEKIT REAL-TIME AGENT VERIFIED</badge>
 

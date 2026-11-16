@@ -28,6 +28,7 @@ import {
   type CameraPreset,
   type TerrainStatusState,
   isCoordinateInsideCrop,
+  computeSiteKey,
 } from "@/lib/services/terrain/terrain-package-types";
 import {
   fetchTerrainManifest,
@@ -609,7 +610,7 @@ function MoonViewer({
 
   // Load Phase 34 LOLA Terrain Package
   const { latitude: targetLat, longitude: targetLon } = selectedSite;
-  const siteKey = `${targetLat.toFixed(4)},${targetLon.toFixed(4)}`;
+  const siteKey = computeSiteKey(targetLat, targetLon);
 
   useEffect(() => {
     let cancelled = false;
@@ -634,7 +635,7 @@ function MoonViewer({
           manifestRequested: {
             state: "passed",
             label: "Manifest Requested",
-            detail: "Request sent to /api/terrain/package?type=manifest",
+            detail: `Request sent to /api/terrain/package?type=manifest&site=${siteKey}`,
             checkedAt: new Date().toISOString(),
           },
           manifestValidated: {
@@ -645,7 +646,7 @@ function MoonViewer({
           },
         }));
 
-        const manifest = await fetchTerrainManifest("site_89_50S_00_00E", signal);
+        const manifest = await fetchTerrainManifest(siteKey, signal);
         if (cancelled || signal.aborted) return;
 
         onDiagnosticsChangeRef.current((current) => ({
@@ -1086,11 +1087,10 @@ export function LunarSimulationPage() {
                 <button
                   type="button"
                   onClick={handleResetView}
-                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
-                    viewMode === "global-moon"
-                      ? "border-sky-400/80 bg-sky-500/20 text-sky-100 ring-1 ring-sky-400/40"
-                      : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
-                  }`}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${viewMode === "global-moon"
+                    ? "border-sky-400/80 bg-sky-500/20 text-sky-100 ring-1 ring-sky-400/40"
+                    : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                    }`}
                 >
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                   Global Moon
@@ -1099,11 +1099,10 @@ export function LunarSimulationPage() {
                 <button
                   type="button"
                   onClick={handleEnterLocalTerrain}
-                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
-                    viewMode === "local-terrain"
-                      ? "border-sky-400/80 bg-sky-500/20 text-sky-100 ring-1 ring-sky-400/40"
-                      : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
-                  }`}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${viewMode === "local-terrain"
+                    ? "border-sky-400/80 bg-sky-500/20 text-sky-100 ring-1 ring-sky-400/40"
+                    : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                    }`}
                 >
                   <MountainSnow className="h-3.5 w-3.5" aria-hidden="true" />
                   Local 3D Terrain
@@ -1124,11 +1123,10 @@ export function LunarSimulationPage() {
                           setCameraPreset("top");
                           viewerControllerRef.current?.setCameraPreset("top");
                         }}
-                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${
-                          cameraPreset === "top"
-                            ? "bg-sky-500 text-white font-bold"
-                            : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-                        }`}
+                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${cameraPreset === "top"
+                          ? "bg-sky-500 text-white font-bold"
+                          : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                          }`}
                       >
                         Top (Nadir)
                       </button>
@@ -1138,11 +1136,10 @@ export function LunarSimulationPage() {
                           setCameraPreset("oblique");
                           viewerControllerRef.current?.setCameraPreset("oblique");
                         }}
-                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${
-                          cameraPreset === "oblique"
-                            ? "bg-sky-500 text-white font-bold"
-                            : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-                        }`}
+                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${cameraPreset === "oblique"
+                          ? "bg-sky-500 text-white font-bold"
+                          : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                          }`}
                       >
                         Oblique
                       </button>
@@ -1152,11 +1149,10 @@ export function LunarSimulationPage() {
                           setCameraPreset("ground");
                           viewerControllerRef.current?.setCameraPreset("ground");
                         }}
-                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${
-                          cameraPreset === "ground"
-                            ? "bg-sky-500 text-white font-bold"
-                            : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-                        }`}
+                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${cameraPreset === "ground"
+                          ? "bg-sky-500 text-white font-bold"
+                          : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                          }`}
                       >
                         Ground
                       </button>
@@ -1172,33 +1168,30 @@ export function LunarSimulationPage() {
                       <button
                         type="button"
                         onClick={() => setLayerStyle("hillshade")}
-                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${
-                          layerStyle === "hillshade"
-                            ? "bg-sky-500 text-white font-bold"
-                            : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-                        }`}
+                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${layerStyle === "hillshade"
+                          ? "bg-sky-500 text-white font-bold"
+                          : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                          }`}
                       >
                         Hillshade
                       </button>
                       <button
                         type="button"
                         onClick={() => setLayerStyle("elevation-color")}
-                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${
-                          layerStyle === "elevation-color"
-                            ? "bg-sky-500 text-white font-bold"
-                            : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-                        }`}
+                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${layerStyle === "elevation-color"
+                          ? "bg-sky-500 text-white font-bold"
+                          : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                          }`}
                       >
                         Elevation
                       </button>
                       <button
                         type="button"
                         onClick={() => setLayerStyle("wireframe")}
-                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${
-                          layerStyle === "wireframe"
-                            ? "bg-sky-500 text-white font-bold"
-                            : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-                        }`}
+                        className={`rounded-lg py-1.5 text-center text-[11px] font-medium transition-colors ${layerStyle === "wireframe"
+                          ? "bg-sky-500 text-white font-bold"
+                          : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                          }`}
                       >
                         Wireframe
                       </button>
@@ -1219,11 +1212,10 @@ export function LunarSimulationPage() {
                           key={val}
                           type="button"
                           onClick={() => setVerticalExaggeration(val)}
-                          className={`flex-1 rounded-lg py-1 text-center text-xs font-medium transition-colors ${
-                            verticalExaggeration === val
-                              ? "bg-sky-500 text-white font-bold"
-                              : "bg-slate-900 text-slate-300 hover:bg-slate-800"
-                          }`}
+                          className={`flex-1 rounded-lg py-1 text-center text-xs font-medium transition-colors ${verticalExaggeration === val
+                            ? "bg-sky-500 text-white font-bold"
+                            : "bg-slate-900 text-slate-300 hover:bg-slate-800"
+                            }`}
                         >
                           {val.toFixed(1)}×
                         </button>
@@ -1327,13 +1319,12 @@ export function LunarSimulationPage() {
             <div className="pointer-events-none absolute left-4 top-4 z-20 flex flex-col gap-1.5">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-xs text-white backdrop-blur-md">
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    terrainStatus.code === "ready"
-                      ? "bg-emerald-400 animate-pulse"
-                      : terrainStatus.code === "out-of-coverage"
-                        ? "bg-amber-400"
-                        : "bg-sky-400 animate-ping"
-                  }`}
+                  className={`h-2 w-2 rounded-full ${terrainStatus.code === "ready"
+                    ? "bg-emerald-400 animate-pulse"
+                    : terrainStatus.code === "out-of-coverage"
+                      ? "bg-amber-400"
+                      : "bg-sky-400 animate-ping"
+                    }`}
                 />
                 <span className="font-semibold">
                   {viewMode === "global-moon" ? "NASA Moon Trek Global View" : "LOLA 3D Surface View"}

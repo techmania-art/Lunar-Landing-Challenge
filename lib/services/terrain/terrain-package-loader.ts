@@ -26,16 +26,36 @@ export async function fetchTerrainManifest(
   });
 
   if (!response.ok) {
+    let errorCode = "NETWORK_ERROR";
+    let errorMessage = `Failed to load terrain manifest: HTTP ${response.status} ${response.statusText}`;
+
+    try {
+      const errJson = (await response.json()) as { code?: string; message?: string; error?: string };
+      if (errJson.code) errorCode = errJson.code;
+      if (errJson.message || errJson.error) {
+        errorMessage = errJson.message || errJson.error || errorMessage;
+      }
+    } catch {
+      // Non-JSON error body fallback
+    }
+
     if (response.status === 404) {
       throw new TerrainLoadError(
-        `Prepared terrain package unavailable for site '${siteKey}'`,
-        "SITE_UNAVAILABLE",
+        errorMessage || `Prepared terrain package unavailable for site '${siteKey}'`,
+        errorCode === "NETWORK_ERROR" ? "PACKAGE_NOT_FOUND" : errorCode,
       );
     }
-    throw new TerrainLoadError(
-      `Failed to load terrain manifest: HTTP ${response.status} ${response.statusText}`,
-      "NETWORK_ERROR",
-    );
+    if (response.status === 409) {
+      throw new TerrainLoadError(errorMessage, "SITE_MISMATCH");
+    }
+    if (response.status === 422) {
+      throw new TerrainLoadError(errorMessage, "INVALID_MANIFEST");
+    }
+    if (response.status === 400) {
+      throw new TerrainLoadError(errorMessage, "INVALID_SITE_KEY");
+    }
+
+    throw new TerrainLoadError(errorMessage, errorCode);
   }
 
   let manifest: TerrainManifest;

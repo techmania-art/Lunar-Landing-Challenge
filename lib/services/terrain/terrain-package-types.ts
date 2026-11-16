@@ -236,3 +236,15 @@ export function isCoordinateInsideCrop(
   const { x, y } = lunarLatLonToProjectedMeters(latitude, longitude, bodyRadiusMeters);
   return x >= crop.left && x <= crop.right && y >= crop.bottom && y <= crop.top;
 }
+
+/**
+ * Canonical site key formatter matching the Phase 34 Python implementation:
+ * f"site_{abs(latitude):05.2f}{lat_dir}_{abs(longitude):05.2f}{lon_dir}".replace(".", "_").replace("-", "")
+ */
+export function computeSiteKey(latitude: number, longitude: number): string {
+  const latDir = latitude >= 0 ? "N" : "S";
+  const lonDir = longitude >= 0 ? "E" : "W";
+  const latAbs = Math.abs(latitude).toFixed(2).padStart(5, "0").replace(".", "_");
+  const lonAbs = Math.abs(longitude).toFixed(2).padStart(5, "0").replace(".", "_");
+  return `site_${latAbs}${latDir}_${lonAbs}${lonDir}`;
+}

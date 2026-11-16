@@ -1,16 +1,22 @@
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import { NextRequest } from "next/server";
 import {
   type TerrainManifest,
   type PreparedTerrainGrid,
   lunarLatLonToProjectedMeters,
   projectedMetersToLunarLatLon,
   isCoordinateInsideCrop,
+  computeSiteKey,
 } from "@/lib/services/terrain/terrain-package-types";
 import {
   buildTerrainMeshData,
 } from "@/lib/services/terrain/terrain-mesh-builder";
+import {
+  GET,
+  resolvePackageDir,
+} from "@/app/api/terrain/package/route";
 
 describe("Phase 35: Prepared LOLA Terrain Package and Mesh Builder Unit Tests", () => {
   const manifestPath = path.resolve(
@@ -210,5 +216,91 @@ describe("Phase 35: Prepared LOLA Terrain Package and Mesh Builder Unit Tests", 
     // A single vertex hole touches 4 quads = 8 triangles that must be excluded
     const expectedTriangles = 162 - 8;
     expect(mesh.totalTriangles).toBe(expectedTriangles);
+  });
+
+  describe("Site Key Generation & Equivalency Contract", () => {
+    it("maps -89.5, 0.0 to site_89_50S_00_00E", () => {
+      expect(computeSiteKey(-89.5, 0.0)).toBe("site_89_50S_00_00E");
+    });
+
+    it("produces identical keys for equivalent floating-point representations", () => {
+      expect(computeSiteKey(-89.500000, 0.000000)).toBe("site_89_50S_00_00E");
+      expect(computeSiteKey(-89.501, 0.001)).toBe("site_89_50S_00_00E");
+    });
+
+    it("correctly handles various quadrant conventions", () => {
+      expect(computeSiteKey(89.5, -45.2)).toBe("site_89_50N_45_20W");
+      expect(computeSiteKey(0.0, 0.0)).toBe("site_00_00N_00_00E");
+      expect(computeSiteKey(-12.34, 179.99)).toBe("site_12_34S_179_99E");
+    });
+  });
+
+  describe("API Route: /api/terrain/package Discovery & Delivery", () => {
+    it("resolves canonical package directory regardless of process.cwd variation", () => {
+      const resolved = resolvePackageDir("site_89_50S_00_00E");
+      expect(resolved).toBeDefined();
+      expect(fs.existsSync(resolved)).toBe(true);
+      expect(fs.existsSync(path.join(resolved, "terrain-manifest.json"))).toBe(true);
+    });
+
+    it("serves valid JSON manifest with sanitized forward-slash paths and cache headers", async () => {
+      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=manifest&site=site_89_50S_00_00E");
+      const res = await GET(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toContain("public");
+
+      const data = await res.json();
+      expect(data.schemaVersion).toBe(1);
+      expect(data.site.siteKey).toBe("site_89_50S_00_00E");
+      // Verify backslashes are sanitized
+      expect(data.browserGrid.path).not.toContain("\\");
+      expect(data.browserGrid.path).toContain("/");
+    });
+
+    it("returns HTTP 404 with PACKAGE_NOT_FOUND for non-existent sites", async () => {
+      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=manifest&site=site_00_00N_00_00E");
+      const res = await GET(req);
+
+      expect(res.status).toBe(404);
+      const data = await res.json();
+      expect(data.code).toBe("PACKAGE_NOT_FOUND");
+      expect(data.siteKey).toBe("site_00_00N_00_00E");
+      expect(res.headers.get("Cache-Control")).toContain("no-store");
+    });
+
+    it("returns HTTP 400 with INVALID_SITE_KEY for malformed site identifiers", async () => {
+      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=manifest&site=../../etc/passwd");
+      const res = await GET(req);
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.code).toBe("INVALID_SITE_KEY");
+    });
+
+    it("returns HTTP 400 with INVALID_REQUEST_TYPE for unsupported asset types", async () => {
+      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=unknown_type&site=site_89_50S_00_00E");
+      const res = await GET(req);
+
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.code).toBe("INVALID_REQUEST_TYPE");
+    });
+
+    it("supports HTTP 206 Partial Content byte-range requests for binary heightmap", async () => {
+      const req = new NextRequest("http://localhost:3000/api/terrain/package?type=heightmap&site=site_89_50S_00_00E", {
+        headers: {
+          Range: "bytes=0-1023",
+        },
+      });
+      const res = await GET(req);
+
+      expect(res.status).toBe(206);
+      expect(res.headers.get("Accept-Ranges")).toBe("bytes");
+      expect(res.headers.get("Content-Range")).toBe("bytes 0-1023/4000000");
+      expect(res.headers.get("Content-Length")).toBe("1024");
+      const buf = await res.arrayBuffer();
+      expect(buf.byteLength).toBe(1024);
+    });
   });
 });
