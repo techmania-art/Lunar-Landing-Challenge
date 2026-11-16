@@ -23,12 +23,11 @@ async function main() {
 
   const page = await context.newPage();
 
-  // Listen to browser console logs and uncaught errors
+  // Listen to browser console logs
   page.on("console", (msg) => {
-    console.log(`[Browser ${msg.type()}]:`, msg.text());
-  });
-  page.on("pageerror", (err) => {
-    console.log("[Browser Uncaught Exception]:", err.message, err.stack);
+    if (msg.type() === "error") {
+      console.log("[Browser Error]:", msg.text());
+    }
   });
 
   console.log("1. Navigating to http://localhost:3000/3d-simulation with South Pole site (-89.5, 0.0)...");

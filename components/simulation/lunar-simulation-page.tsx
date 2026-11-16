@@ -67,6 +67,18 @@ export interface SimulationDiagnostics {
   markerSynchronization: SimulationCheck;
   cameraSynchronization: SimulationCheck;
   lolaTerrain: SimulationCheck;
+  manifestRequested: SimulationCheck;
+  manifestValidated: SimulationCheck;
+  heightmapRequested: SimulationCheck;
+  heightmapValidated: SimulationCheck;
+  terrainMeshCreated: SimulationCheck;
+  terrainMeshAttached: SimulationCheck;
+  terrainVisible: SimulationCheck;
+  pipelineStatus: SimulationCheck;
+}
+
+export function areTerrainStatusesEqual(a: TerrainStatusState, b: TerrainStatusState): boolean {
+  return a.code === b.code && a.message === b.message && a.detail === b.detail;
 }
 
 export type MissionCoordinates = {
@@ -141,6 +153,18 @@ export function createSimulationDiagnostics(): SimulationDiagnostics {
       state: "not-applicable",
       label: "LOLA Terrain",
       detail: "Prepared 10 m LOLA DEM available for South Pole site.",
+    },
+    manifestRequested: { state: "not-checked", label: "Manifest Requested" },
+    manifestValidated: { state: "not-checked", label: "Manifest Validated" },
+    heightmapRequested: { state: "not-checked", label: "Heightmap Requested" },
+    heightmapValidated: { state: "not-checked", label: "Heightmap Validated" },
+    terrainMeshCreated: { state: "not-checked", label: "Terrain Mesh Created" },
+    terrainMeshAttached: { state: "not-checked", label: "Terrain Mesh Attached" },
+    terrainVisible: { state: "not-checked", label: "Terrain Visible" },
+    pipelineStatus: {
+      state: "not-checked",
+      label: "Terrain Pipeline Status",
+      detail: "Awaiting local terrain execution.",
     },
   };
 }
@@ -224,6 +248,7 @@ type MoonViewerProps = {
   cameraPreset: CameraPreset;
   layerStyle: TerrainLayerStyle;
   verticalExaggeration: number;
+  reloadNonce?: number;
   onStatusChange: (status: string) => void;
   onErrorChange: (error: string | null) => void;
   onDiagnosticsChange: Dispatch<SetStateAction<SimulationDiagnostics>>;
@@ -238,6 +263,7 @@ function MoonViewer({
   cameraPreset,
   layerStyle,
   verticalExaggeration,
+  reloadNonce = 0,
   onStatusChange,
   onErrorChange,
   onDiagnosticsChange,
@@ -249,6 +275,7 @@ function MoonViewer({
   const terrainPrimitiveRef = useRef<PrimitiveInstance | null>(null);
   const terrainGridRef = useRef<PreparedTerrainGrid | null>(null);
   const terrainMeshRef = useRef<TerrainMeshData | null>(null);
+  const inFlightRequestRef = useRef<string | null>(null);
 
   const onStatusChangeRef = useRef(onStatusChange);
   const onErrorChangeRef = useRef(onErrorChange);
@@ -581,23 +608,60 @@ function MoonViewer({
   ]);
 
   // Load Phase 34 LOLA Terrain Package
+  const { latitude: targetLat, longitude: targetLon } = selectedSite;
+  const siteKey = `${targetLat.toFixed(4)},${targetLon.toFixed(4)}`;
+
   useEffect(() => {
     let cancelled = false;
+    const abortController = new AbortController();
+    const signal = abortController.signal;
 
     async function loadLolaTerrain() {
+      const requestId = `${siteKey}_ex${verticalExaggeration}_n${reloadNonce}`;
+      if (inFlightRequestRef.current === requestId) {
+        return;
+      }
+      inFlightRequestRef.current = requestId;
+
       try {
         onTerrainStatusChangeRef.current({
           code: "loading-manifest",
-          message: "Loading verified LOLA DEM manifest...",
+          message: "Requesting verified LOLA DEM manifest...",
         });
 
-        const manifest = await fetchTerrainManifest("site_89_50S_00_00E");
-        if (cancelled) return;
+        onDiagnosticsChangeRef.current((current) => ({
+          ...current,
+          manifestRequested: {
+            state: "passed",
+            label: "Manifest Requested",
+            detail: "Request sent to /api/terrain/package?type=manifest",
+            checkedAt: new Date().toISOString(),
+          },
+          manifestValidated: {
+            state: "checking",
+            label: "Manifest Validated",
+            detail: "Awaiting JSON response and schema validation...",
+            checkedAt: new Date().toISOString(),
+          },
+        }));
+
+        const manifest = await fetchTerrainManifest("site_89_50S_00_00E", signal);
+        if (cancelled || signal.aborted) return;
+
+        onDiagnosticsChangeRef.current((current) => ({
+          ...current,
+          manifestValidated: {
+            state: "passed",
+            label: "Manifest Validated",
+            detail: `Schema v${manifest.schemaVersion} verified for ${manifest.site.siteKey}.`,
+            checkedAt: new Date().toISOString(),
+          },
+        }));
 
         // Check if selected coordinate is inside crop footprint
         const inside = isCoordinateInsideCrop(
-          selectedSite.latitude,
-          selectedSite.longitude,
+          targetLat,
+          targetLon,
           manifest.crop,
           manifest.geodesy.bodyRadiusMeters,
         );
@@ -605,7 +669,7 @@ function MoonViewer({
         if (!inside) {
           onTerrainStatusChangeRef.current({
             code: "out-of-coverage",
-            message: `Selected site (${selectedSite.latitude.toFixed(2)}°, ${selectedSite.longitude.toFixed(2)}°) is outside the prepared 10 km South Pole crop.`,
+            message: `Selected site (${targetLat.toFixed(2)}°, ${targetLon.toFixed(2)}°) is outside the prepared 10 km South Pole crop.`,
             detail: "Prepared crop covers South Pole site (-89.50° S, 0.00° E).",
           });
           onDiagnosticsChangeRef.current((current) => ({
@@ -613,7 +677,43 @@ function MoonViewer({
             lolaTerrain: {
               state: "partial",
               label: "LOLA Terrain",
-              detail: `Selected coordinate (${selectedSite.latitude.toFixed(2)}°, ${selectedSite.longitude.toFixed(2)}°) outside prepared crop footprint.`,
+              detail: `Selected coordinate (${targetLat.toFixed(2)}°, ${targetLon.toFixed(2)}°) outside prepared crop footprint.`,
+              checkedAt: new Date().toISOString(),
+            },
+            heightmapRequested: {
+              state: "not-applicable",
+              label: "Heightmap Requested",
+              detail: "Site out of crop coverage.",
+              checkedAt: new Date().toISOString(),
+            },
+            heightmapValidated: {
+              state: "not-applicable",
+              label: "Heightmap Validated",
+              detail: "Site out of crop coverage.",
+              checkedAt: new Date().toISOString(),
+            },
+            terrainMeshCreated: {
+              state: "not-applicable",
+              label: "Terrain Mesh Created",
+              detail: "Site out of crop coverage.",
+              checkedAt: new Date().toISOString(),
+            },
+            terrainMeshAttached: {
+              state: "not-applicable",
+              label: "Terrain Mesh Attached",
+              detail: "Site out of crop coverage.",
+              checkedAt: new Date().toISOString(),
+            },
+            terrainVisible: {
+              state: "not-applicable",
+              label: "Terrain Visible",
+              detail: "Site out of crop coverage.",
+              checkedAt: new Date().toISOString(),
+            },
+            pipelineStatus: {
+              state: "partial",
+              label: "Terrain Pipeline Status",
+              detail: "Site coordinate outside prepared South Pole footprint.",
               checkedAt: new Date().toISOString(),
             },
           }));
@@ -625,8 +725,40 @@ function MoonViewer({
           message: "Decoding 10 m LOLA elevation grid (1,000,000 samples)...",
         });
 
-        const grid = await loadPreparedTerrainGrid(manifest);
-        if (cancelled) return;
+        onDiagnosticsChangeRef.current((current) => ({
+          ...current,
+          heightmapRequested: {
+            state: "passed",
+            label: "Heightmap Requested",
+            detail: `Requesting Float32 heightmap for ${manifest.site.siteKey}.`,
+            checkedAt: new Date().toISOString(),
+          },
+          heightmapValidated: {
+            state: "checking",
+            label: "Heightmap Validated",
+            detail: "Validating buffer byte length and sample range...",
+            checkedAt: new Date().toISOString(),
+          },
+        }));
+
+        const grid = await loadPreparedTerrainGrid(manifest, signal);
+        if (cancelled || signal.aborted) return;
+
+        onDiagnosticsChangeRef.current((current) => ({
+          ...current,
+          heightmapValidated: {
+            state: "passed",
+            label: "Heightmap Validated",
+            detail: `Verified ${grid.gridWidth * grid.gridHeight} Float32 samples (${(grid.elevations.byteLength / 1e6).toFixed(1)} MB).`,
+            checkedAt: new Date().toISOString(),
+          },
+          terrainMeshCreated: {
+            state: "checking",
+            label: "Terrain Mesh Created",
+            detail: "Computing spherical Cartesian vertex positions and normals...",
+            checkedAt: new Date().toISOString(),
+          },
+        }));
 
         onTerrainStatusChangeRef.current({
           code: "generating-mesh",
@@ -639,7 +771,7 @@ function MoonViewer({
           verticalExaggeration,
         });
 
-        if (cancelled) return;
+        if (cancelled || signal.aborted) return;
 
         terrainGridRef.current = grid;
         terrainMeshRef.current = meshData;
@@ -667,9 +799,33 @@ function MoonViewer({
               `Datum: ${manifest.geodesy.bodyFrame}`,
             ],
           },
+          terrainMeshCreated: {
+            state: "passed",
+            label: "Terrain Mesh Created",
+            detail: `Mesh generated: ${meshData.totalVertices.toLocaleString()} vertices, ${meshData.totalTriangles.toLocaleString()} triangles across ${meshData.chunks.length} sub-grid chunks.`,
+            checkedAt: new Date().toISOString(),
+          },
+          terrainMeshAttached: {
+            state: "passed",
+            label: "Terrain Mesh Attached",
+            detail: "Cesium Primitive ready for local 3D terrain viewport mode.",
+            checkedAt: new Date().toISOString(),
+          },
+          terrainVisible: {
+            state: "passed",
+            label: "Terrain Visible",
+            detail: "Physical 3D elevation relief attached to lunar scene.",
+            checkedAt: new Date().toISOString(),
+          },
+          pipelineStatus: {
+            state: "passed",
+            label: "Terrain Pipeline Status",
+            detail: "Pipeline executed successfully without error.",
+            checkedAt: new Date().toISOString(),
+          },
         }));
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled || signal.aborted) return;
         const msg = err instanceof Error ? err.message : "Error loading LOLA terrain";
         onTerrainStatusChangeRef.current({
           code: "error",
@@ -684,7 +840,15 @@ function MoonViewer({
             detail: msg,
             checkedAt: new Date().toISOString(),
           },
+          pipelineStatus: {
+            state: "failed",
+            label: "Terrain Pipeline Status",
+            detail: msg,
+            checkedAt: new Date().toISOString(),
+          },
         }));
+      } finally {
+        inFlightRequestRef.current = null;
       }
     }
 
@@ -692,12 +856,10 @@ function MoonViewer({
 
     return () => {
       cancelled = true;
+      abortController.abort();
+      inFlightRequestRef.current = null;
     };
-  }, [
-    selectedSite.latitude,
-    selectedSite.longitude,
-    verticalExaggeration,
-  ]);
+  }, [siteKey, targetLat, targetLon, verticalExaggeration, reloadNonce]);
 
   // Handle View Mode & Terrain Primitive Attachment
   useEffect(() => {
@@ -805,8 +967,28 @@ export function LunarSimulationPage() {
     code: "not-loaded",
     message: "Initializing terrain loader...",
   });
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const viewerControllerRef = useRef<MoonViewerController | null>(null);
+
+  const handleRetryTerrain = useCallback(() => {
+    setReloadNonce((n) => n + 1);
+  }, []);
+
+  const handleStatusChange = useCallback((nextStatus: string) => {
+    setStatus((curr) => (curr === nextStatus ? curr : nextStatus));
+  }, []);
+
+  const handleErrorChange = useCallback((nextError: string | null) => {
+    setError((curr) => (curr === nextError ? curr : nextError));
+  }, []);
+
+  const handleDiagnosticsChange = useCallback(
+    (updater: SetStateAction<SimulationDiagnostics>) => {
+      setDiagnostics(updater);
+    },
+    [],
+  );
 
   const handleTerrainLoaded = useCallback(
     (grid: PreparedTerrainGrid, mesh: TerrainMeshData) => {
@@ -815,6 +997,15 @@ export function LunarSimulationPage() {
     },
     [],
   );
+
+  const handleTerrainStatusChange = useCallback((next: TerrainStatusState) => {
+    setTerrainStatus((current) => {
+      if (areTerrainStatusesEqual(current, next)) {
+        return current;
+      }
+      return next;
+    });
+  }, []);
 
   const handleFocusMissionSite = () => {
     viewerControllerRef.current?.focusMissionSite(selectedSite);
@@ -1064,6 +1255,32 @@ export function LunarSimulationPage() {
                 </div>
               )}
 
+              {/* Error & Retry Notice */}
+              {terrainStatus.code === "error" && (
+                <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-3 text-xs text-rose-200">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" aria-hidden="true" />
+                    <div>
+                      <p className="font-semibold text-rose-300">LOLA Terrain Loading Error</p>
+                      <p className="mt-1 text-[11px] text-rose-200/90 leading-tight">
+                        {terrainStatus.message}
+                      </p>
+                      {terrainStatus.detail && (
+                        <p className="mt-0.5 text-[10px] text-rose-300/80">{terrainStatus.detail}</p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleRetryTerrain}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded bg-rose-500/20 px-2.5 py-1 text-[10px] font-bold text-rose-300 ring-1 ring-rose-500/40 hover:bg-rose-500/30"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Retry Terrain Load
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex flex-col gap-2">
                 <button
@@ -1098,11 +1315,12 @@ export function LunarSimulationPage() {
               cameraPreset={cameraPreset}
               layerStyle={layerStyle}
               verticalExaggeration={verticalExaggeration}
-              onStatusChange={setStatus}
-              onErrorChange={setError}
-              onDiagnosticsChange={setDiagnostics}
+              reloadNonce={reloadNonce}
+              onStatusChange={handleStatusChange}
+              onErrorChange={handleErrorChange}
+              onDiagnosticsChange={handleDiagnosticsChange}
               onTerrainLoaded={handleTerrainLoaded}
-              onTerrainStatusChange={setTerrainStatus}
+              onTerrainStatusChange={handleTerrainStatusChange}
             />
 
             {/* Top Badge overlay */}

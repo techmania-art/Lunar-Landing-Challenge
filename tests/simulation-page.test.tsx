@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import SimulationPage from "@/app/3d-simulation/page";
@@ -6,6 +6,7 @@ import { LunarMapPanel } from "@/components/workspace/lunar-map-panel";
 import {
   DEFAULT_COORDINATES,
   MOON_TREK_WMTS_METADATA,
+  areTerrainStatusesEqual,
   buildMoonTrekTileUrl,
   createSimulationDiagnostics,
   getLunarReferenceRadiusMeters,
@@ -69,6 +70,62 @@ describe("Phase 3 3D Moon Simulation Tests", () => {
     expect(diagnostics.lolaTerrain.state).toBe("not-applicable");
     expect(diagnostics.viewer.state).toBe("not-checked");
     expect(diagnostics.selectedCoordinates.label).toContain("Selected Site");
+    // Verify required pipeline stage diagnostics exist
+    expect(diagnostics.manifestRequested).toBeDefined();
+    expect(diagnostics.manifestValidated).toBeDefined();
+    expect(diagnostics.heightmapRequested).toBeDefined();
+    expect(diagnostics.heightmapValidated).toBeDefined();
+    expect(diagnostics.terrainMeshCreated).toBeDefined();
+    expect(diagnostics.terrainMeshAttached).toBeDefined();
+    expect(diagnostics.terrainVisible).toBeDefined();
+    expect(diagnostics.pipelineStatus).toBeDefined();
+  });
+
+  it("areTerrainStatusesEqual accurately prevents unnecessary state mutations", () => {
+    const statusA = {
+      code: "loading-manifest" as const,
+      message: "Loading manifest...",
+      detail: "Details A",
+    };
+    const statusB = {
+      code: "loading-manifest" as const,
+      message: "Loading manifest...",
+      detail: "Details A",
+    };
+    const statusC = {
+      code: "loading-manifest" as const,
+      message: "Different message",
+      detail: "Details A",
+    };
+
+    expect(areTerrainStatusesEqual(statusA, statusB)).toBe(true);
+    expect(areTerrainStatusesEqual(statusA, statusC)).toBe(false);
+  });
+
+  it("fetchTerrainManifest validates schema and fails safely on corrupt data or 404", async () => {
+    const { fetchTerrainManifest, TerrainLoadError } = await import("@/lib/services/terrain/terrain-package-loader");
+    const originalFetch = global.fetch;
+
+    try {
+      // Test 404 handling
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      });
+
+      await expect(fetchTerrainManifest("missing_site")).rejects.toThrow(TerrainLoadError);
+
+      // Test invalid schema JSON handling
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ invalid: true }),
+      });
+
+      await expect(fetchTerrainManifest("site_89_50S_00_00E")).rejects.toThrow(TerrainLoadError);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });
 

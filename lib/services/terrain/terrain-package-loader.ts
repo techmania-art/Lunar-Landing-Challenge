@@ -38,10 +38,33 @@ export async function fetchTerrainManifest(
     );
   }
 
-  const manifest = (await response.json()) as TerrainManifest;
-  if (!manifest || manifest.schemaVersion !== 1 || !manifest.browserGrid || !manifest.crop) {
+  let manifest: TerrainManifest;
+  try {
+    manifest = (await response.json()) as TerrainManifest;
+  } catch (err) {
     throw new TerrainLoadError(
-      "Invalid or corrupted terrain manifest schema",
+      `Manifest response is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      "INVALID_MANIFEST_JSON",
+    );
+  }
+
+  if (
+    !manifest ||
+    manifest.schemaVersion !== 1 ||
+    !manifest.site ||
+    typeof manifest.site.siteKey !== "string" ||
+    !manifest.crop ||
+    !Number.isFinite(manifest.crop.left) ||
+    !Number.isFinite(manifest.crop.right) ||
+    !manifest.browserGrid ||
+    manifest.browserGrid.width <= 0 ||
+    manifest.browserGrid.height <= 0 ||
+    manifest.browserGrid.actualSpacingMeters <= 0 ||
+    !manifest.geodesy ||
+    manifest.geodesy.bodyRadiusMeters < 1_700_000
+  ) {
+    throw new TerrainLoadError(
+      "Invalid or corrupted terrain manifest schema: required fields missing or out of valid bounds",
       "INVALID_MANIFEST",
     );
   }

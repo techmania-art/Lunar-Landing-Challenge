@@ -58,6 +58,7 @@ Never change a status to `VERIFIED FIXED` without test evidence.
 | `SIS-CHAT-027` | Phase 26 | SIS Chat No Agent Reply & LiveKit Text/Voice Agent Dispatch Debug | `VERIFIED FIXED` | Critical |
 | `SIM-003` | Phase 3 | Phase 3 Moon globe verification stack, WMTS health checks, and mission-site synchronization diagnostics | `READY FOR TEST` | Critical |
 | `SIM-004` | Phase 3 | Moon Trek imagery not visibly draping the lunar globe because the provider config and active layer attachment were not fully synchronized with the verified service metadata | `READY FOR TEST` | Critical |
+| `TERR-LOOP-035` | Phase 35 | LOLA Terrain Effect Loop, Maximum Update Depth Exceeded, and WebGL Shader Compilation Error | `VERIFIED FIXED` | Critical |
 
 **Important:** These statuses describe the evidence available in the project conversation and screenshots. They are not claims about the current state of the user's local codebase. The actual repository must be inspected and tests must be run before confirming implementation status.
 
@@ -902,7 +903,64 @@ The SIS panel displayed a user message (e.g., *"What does this mean for the rove
 
 ---
 
-## 15. Overall debug acceptance checklist
+## 15. Issue TERR-LOOP-035 — LOLA Terrain Effect Loop, Maximum Update Depth Exceeded, and WebGL Shader Compilation Error
+
+### Affected phases
+- **Phase 35:** Render Local 3D Lunar Terrain from Processed LOLA DEM (`components/simulation/lunar-simulation-page.tsx`, `lib/services/terrain/terrain-mesh-builder.ts`, `lib/services/terrain/terrain-package-loader.ts`).
+
+### Observed requirement / defect
+1. **React State Loop / Maximum Update Depth Exceeded:**
+   When navigating to `/3d-simulation`, React threw `Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops.` at `MoonViewer.useEffect` (`components/simulation/lunar-simulation-page.tsx:588/690`).
+2. **Endless Duplicate Manifest Requests:**
+   Continuous repeated GET requests to `/api/terrain/package?type=manifest&site=site_89_50S_00_00E` flooded the network log.
+3. **Cesium WebGL Shader Compilation Failure:**
+   In local terrain mode, Cesium WebGL fragment shader failed with:
+   `Fragment shader compile log: ERROR: 0:7: 'roughness' : no such field in structure`. Cesium `czm_material` does not have a `roughness` property.
+
+### Investigation & confirmed root cause
+1. **Recreated Callback Identity in Effect Dependency Array:**
+   `loadLolaTerrain` effect depended on callback props (`onTerrainStatusChange`, `onDiagnosticsChange`, `onStatusChange`, `onErrorChange`). Inside `loadLolaTerrain`, `onTerrainStatusChange({ code: "loading-manifest", ... })` called `setTerrainStatus` in parent `LunarSimulationPage`. This triggered a parent re-render, creating brand new function identities for the callbacks. The new callback references caused the effect to cancel and immediately re-execute, invoking `setTerrainStatus` again in an infinite loop.
+2. **Missing In-Flight Request Guard & AbortController:**
+   No request guard or cancellation mechanism existed to prevent overlapping fetches or abort previous ones when parameters changed.
+3. **Invalid GLSL Material Property:**
+   `czm_material` in Cesium contains `diffuse`, `specular`, `shininess`, `normal`, `emission`, and `alpha`. The shader assigned `material.roughness = 0.9;`, which caused WebGL shader compile errors and broke rendering.
+
+### Code corrections implemented
+1. **Value-Equality Memoization (`areTerrainStatusesEqual`):**
+   Added `areTerrainStatusesEqual()` in `lunar-simulation-page.tsx` and wrapped `setTerrainStatus` with deep value comparison to prevent re-renders when status code and details have not changed.
+2. **Callback Ref Synchronization in Passive Effect:**
+   Stored all callback props in React refs (`onTerrainStatusChangeRef`, `onDiagnosticsChangeRef`, etc.) and synchronized them inside a passive `useEffect` hook, satisfying React 19 / ESLint `react-hooks/refs` rules.
+3. **Clean Effect Dependencies & Site-Keyed Guard:**
+   Restricted `loadLolaTerrain` dependencies strictly to primitive data inputs `[siteKey, targetLat, targetLon, verticalExaggeration, reloadNonce]`. Added `inFlightRequestRef` guard and `AbortController` to guarantee at most one manifest/heightmap request per unique site configuration.
+4. **Cesium Shader Fix:**
+   Replaced invalid `material.roughness` with `material.shininess = 1.0;` in `lib/services/terrain/terrain-mesh-builder.ts`.
+5. **Strict Schema & Bounds Validation:**
+   Added schema and bounds validation (`schemaVersion === 1`, finite coordinates, positive grid dimensions, valid lunar radius $> 1,700,000\text{ m}$) in `lib/services/terrain/terrain-package-loader.ts`.
+6. **Error & Retry UI:**
+   Added a visible error banner with a Retry button (`handleRetryTerrain`) to the simulation control panel.
+
+### Test procedures & evidence
+1. **Unit Tests (`tests/simulation-page.test.tsx`):**
+   - Verified `areTerrainStatusesEqual` prevents redundant state mutations.
+   - Verified `fetchTerrainManifest` rejects invalid schemas without re-requesting.
+   - 12/12 tests passed in `tests/simulation-page.test.tsx` and `tests/terrain-package.test.ts`. Full suite: 145/145 tests passed (`npm test`).
+2. **Static Analysis & Build:**
+   - `npm run lint` -> 0 errors, 0 warnings.
+   - `npm run typecheck` -> 0 errors.
+   - `npm run build` -> production build succeeded (all 16 routes optimized).
+3. **Headless Visual E2E Verification (`scripts/verify_phase35_terrain_e2e.js`):**
+   - Captured all 5 required visual artifacts with 0 console errors, 0 shader compile errors, and 0 duplicate request loops:
+     - `phase-35-1-global-moon.png`
+     - `phase-35-2-local-terrain-top.png`
+     - `phase-35-3-local-terrain-oblique.png`
+     - `phase-35-4-local-terrain-ground.png`
+     - `phase-35-5-out-of-coverage.png`
+
+- **Current Status:** `VERIFIED FIXED`
+
+---
+
+## 16. Overall debug acceptance checklist
 
 - [x] Actual repository inspected.
 - [x] Current LROC endpoint identified (`https://wms.im-ldi.com/` via `/api/lunar-map`).
@@ -932,8 +990,9 @@ The SIS panel displayed a user message (e.g., *"What does this mean for the rove
 
 - [x] Phase 26 LiveKit SIS UI adaptation, dummy data removal, and real agent round-trip verified (SIS-LIVEKIT-026).
 - [x] Phase 26 LiveKit SIS Chat no agent reply debug, truthful badge states, and real Gemini round-trip verified (SIS-CHAT-027).
+- [x] Phase 35 LOLA terrain effect loop, Cesium WebGL shader compile error, and 3D terrain restoration verified (TERR-LOOP-035).
 
-## 16. Overall status
+## 17. Overall status
 
 <badge color="success">VERIFIED FIXED — LROC MAP, JPL HORIZONS & SIS LIVEKIT REAL-TIME AGENT VERIFIED</badge>
 
